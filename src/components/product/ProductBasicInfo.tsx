@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ProductFormData } from '@/hooks/useProductForm';
+import { PriceFields } from './PriceFields';
 
 interface ProductBasicInfoProps {
   form: UseFormReturn<ProductFormData>;
@@ -15,46 +16,19 @@ export const ProductBasicInfo = ({ form }: ProductBasicInfoProps) => {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Nama Produk</Label>
-          <Input
-            id="name"
-            placeholder="Nama Produk"
-            {...register('name')}
-          />
-          {errors.name && (
-            <p className="text-sm text-red-500">{errors.name.message}</p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="price">Harga</Label>
-          <Input
-            id="price"
-            type="number"
-            placeholder="Harga"
-            {...register('price', { valueAsNumber: true })}
-          />
-          {errors.price && (
-            <p className="text-sm text-red-500">{errors.price.message}</p>
-          )}
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="name">Nama Produk</Label>
+        <Input
+          id="name"
+          placeholder="Nama Produk"
+          {...register('name')}
+        />
+        {errors.name && (
+          <p className="text-sm text-red-500">{errors.name.message}</p>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="cost_price">Harga Modal</Label>
-          <Input
-            id="cost_price"
-            type="number"
-            placeholder="Harga Modal"
-            {...register('cost_price', { valueAsNumber: true })}
-          />
-          {errors.cost_price && (
-            <p className="text-sm text-red-500">{errors.cost_price.message}</p>
-          )}
-        </div>
-      </div>
+      <PriceFields form={form} />
 
       <div className="space-y-2">
         <Label htmlFor="description">Deskripsi</Label>
