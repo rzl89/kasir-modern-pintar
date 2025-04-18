@@ -117,35 +117,44 @@ const ProductForm = () => {
   const loadProductData = async (productId: string) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // First, get the product data
+      const { data: productData, error: productError } = await supabase
         .from('products')
-        .select(`
-          *,
-          stock(quantity)
-        `)
+        .select('*')
         .eq('id', productId)
         .single();
 
-      if (error) {
-        throw error;
+      if (productError) {
+        throw productError;
+      }
+
+      // Get stock data separately
+      const { data: stockData, error: stockError } = await supabase
+        .from('stock')
+        .select('quantity')
+        .eq('product_id', productId)
+        .maybeSingle();
+
+      if (stockError) {
+        console.error('Error loading stock:', stockError);
       }
 
       // Add default values for potentially missing properties
       setFormData({
-        name: data.name || '',
-        description: data.description || '',
-        price: data.price || 0,
-        cost_price: data.cost_price !== undefined ? data.cost_price : 0,
-        barcode: data.barcode || '',
-        sku: data.sku !== undefined ? data.sku : '',
-        category_id: data.category_id || '',
-        image_url: data.image_url || '',
-        stock_quantity: data.stock?.[0]?.quantity || 0,
-        is_active: data.is_active !== undefined ? data.is_active : true,
+        name: productData.name || '',
+        description: productData.description || '',
+        price: productData.price || 0,
+        cost_price: productData.cost_price !== undefined ? productData.cost_price : 0,
+        barcode: productData.barcode || '',
+        sku: productData.sku !== undefined ? productData.sku : '',
+        category_id: productData.category_id || '',
+        image_url: productData.image_url || '',
+        stock_quantity: stockData?.quantity || 0,
+        is_active: productData.is_active !== undefined ? productData.is_active : true,
       });
 
-      if (data.image_url) {
-        setPreviewUrl(data.image_url);
+      if (productData.image_url) {
+        setPreviewUrl(productData.image_url);
       }
     } catch (error) {
       console.error('Error loading product:', error);
@@ -186,18 +195,40 @@ const ProductForm = () => {
 
         // Update stock separately if needed
         if (data.stock_quantity !== undefined) {
-          const { error: stockError } = await supabase
+          // Check if stock record exists
+          const { data: existingStock } = await supabase
             .from('stock')
-            .upsert({
-              product_id: productId,
-              quantity: data.stock_quantity,
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'product_id'
-            });
+            .select('id')
+            .eq('product_id', productId)
+            .maybeSingle();
 
-          if (stockError) {
-            throw stockError;
+          if (existingStock) {
+            // Update existing stock
+            const { error: stockError } = await supabase
+              .from('stock')
+              .update({
+                quantity: data.stock_quantity,
+                updated_at: new Date().toISOString()
+              })
+              .eq('product_id', productId);
+
+            if (stockError) {
+              throw stockError;
+            }
+          } else {
+            // Create new stock record
+            const { error: stockError } = await supabase
+              .from('stock')
+              .insert({
+                product_id: productId,
+                quantity: data.stock_quantity,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
+
+            if (stockError) {
+              throw stockError;
+            }
           }
         }
 
@@ -232,7 +263,9 @@ const ProductForm = () => {
             .from('stock')
             .insert({
               product_id: newProduct[0].id,
-              quantity: data.stock_quantity
+              quantity: data.stock_quantity,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
             });
 
           if (stockError) {

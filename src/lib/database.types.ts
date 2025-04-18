@@ -1,3 +1,4 @@
+
 export type Json =
   | string
   | number
@@ -90,6 +91,41 @@ export interface Database {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      stock: {
+        Row: {
+          id: string
+          product_id: string
+          quantity: number
+          low_stock_threshold: number | null
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          quantity?: number
+          low_stock_threshold?: number | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          quantity?: number
+          low_stock_threshold?: number | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           }
         ]
