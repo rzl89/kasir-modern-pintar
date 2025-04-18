@@ -1,4 +1,3 @@
-
 export type Role = 'admin' | 'cashier';
 
 export interface User {
@@ -29,6 +28,7 @@ export interface Product {
   image_url?: string;
   category_id?: string;
   is_active?: boolean;
+  stock_quantity?: number;
   created_at: string;
   updated_at?: string;
 }

@@ -1,72 +1,78 @@
-
 import { useState, useEffect } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useNavigate, useParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { STORAGE_URL } from '@/integrations/supabase/client';
-import { Category } from '@/lib/types';
-import { ArrowLeft, Upload } from 'lucide-react';
+import { Product, Category } from '@/lib/types';
+import { Plus, X } from 'lucide-react';
 
 const formSchema = z.object({
-  name: z.string().min(1, 'Nama produk wajib diisi'),
+  name: z.string().min(2, {
+    message: 'Nama produk harus lebih dari 2 karakter.',
+  }),
   description: z.string().optional(),
-  price: z.coerce.number().min(0, 'Harga tidak boleh negatif'),
-  cost_price: z.coerce.number().min(0, 'Harga modal tidak boleh negatif').optional(),
-  sku: z.string().optional(),
+  price: z.number({
+    invalid_type_error: 'Harga harus berupa angka.',
+  }).min(1, {
+    message: 'Harga harus lebih dari 0.',
+  }),
+  cost_price: z.number({
+    invalid_type_error: 'Harga modal harus berupa angka.',
+  }).optional(),
   barcode: z.string().optional(),
+  sku: z.string().optional(),
   category_id: z.string().optional(),
-  stock_quantity: z.coerce.number().int().min(0, 'Stok tidak boleh negatif').default(0),
-  is_active: z.boolean().default(true),
+  image_url: z.string().optional(),
+  stock_quantity: z.number().optional(),
+  is_active: z.boolean().optional(),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+type FormData = z.infer<typeof formSchema>;
 
 const ProductForm = () => {
-  const { id } = useParams();
-  const isEditing = !!id;
-  const navigate = useNavigate();
-  const { toast } = useToast();
-
-  const [loading, setLoading] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [formData, setFormData] = useState<FormData>({
+    name: '',
+    description: '',
+    price: 0,
+    cost_price: 0,
+    barcode: '',
+    sku: '',
+    category_id: '',
+    image_url: '',
+    stock_quantity: 0,
+    is_active: true,
+  });
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [image, setImage] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const { productId } = useParams<{ productId: string }>();
 
   const {
     register,
     handleSubmit,
     setValue,
-    reset,
     formState: { errors },
-    watch,
-  } = useForm<FormValues>({
+  } = useForm<FormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      price: 0,
-      cost_price: 0,
-      sku: '',
-      barcode: '',
-      stock_quantity: 0,
-      is_active: true,
-    },
+    defaultValues: formData,
   });
-
-  const watchCategory = watch('category_id');
 
   useEffect(() => {
     const fetchCategories = async () => {
+      setLoading(true);
       try {
         const { data, error } = await supabase
           .from('categories')
@@ -85,93 +91,76 @@ const ProductForm = () => {
           title: 'Error',
           description: 'Gagal memuat data kategori',
         });
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchCategories();
+  }, [toast]);
 
-    if (isEditing) {
-      const fetchProduct = async () => {
-        setLoading(true);
-        try {
-          // Join with stock table to get quantity
-          const { data, error } = await supabase
-            .from('products')
-            .select(`
-              *,
-              stock(quantity)
-            `)
-            .eq('id', id)
-            .single();
-
-          if (error) {
-            throw error;
-          }
-
-          if (data) {
-            const stockQuantity = data.stock && data.stock[0] ? data.stock[0].quantity : 0;
-            
-            reset({
-              name: data.name,
-              description: data.description || '',
-              price: data.price,
-              cost_price: data.cost_price || 0,
-              sku: data.sku || '',
-              barcode: data.barcode || '',
-              category_id: data.category_id || '',
-              stock_quantity: stockQuantity,
-              is_active: data.is_active !== undefined ? data.is_active : true,
-            });
-
-            if (data.image_url) {
-              setImagePreview(data.image_url);
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching product:', error);
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Gagal memuat data produk',
-          });
-          navigate('/products');
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      fetchProduct();
+  useEffect(() => {
+    if (productId) {
+      loadProductData(productId);
     }
-  }, [id, isEditing, navigate, reset, toast]);
+  }, [productId]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+  useEffect(() => {
+    // Set default values in the form
+    Object.keys(formData).forEach(key => {
+      setValue(key as keyof FormData, formData[key as keyof FormData]);
+    });
+  }, [formData, setValue]);
+
+  const loadProductData = async (productId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          stock(quantity)
+        `)
+        .eq('id', productId)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      // Add default values for potentially missing properties
+      setFormData({
+        name: data.name || '',
+        description: data.description || '',
+        price: data.price || 0,
+        cost_price: data.cost_price || 0,
+        barcode: data.barcode || '',
+        sku: data.sku || '',
+        category_id: data.category_id || '',
+        image_url: data.image_url || '',
+        stock_quantity: data.stock?.[0]?.quantity || 0,
+        is_active: data.is_active !== undefined ? data.is_active : true,
+      });
+
+      if (data.image_url) {
+        setPreviewUrl(data.image_url);
+      }
+    } catch (error) {
+      console.error('Error loading product:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Gagal memuat data produk',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const onSubmit = async (data: FormValues) => {
+  const onSubmit = async (data: FormData) => {
     setLoading(true);
     try {
-      let imageUrl = imagePreview;
-
-      // Upload image if a new one is selected
-      if (imageFile) {
-        const fileName = `${Date.now()}_${imageFile.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(fileName, imageFile);
-
-        if (uploadError) {
-          throw uploadError;
-        }
-
-        imageUrl = `${STORAGE_URL}/product-images/${fileName}`;
-      }
-
-      if (isEditing) {
+      if (productId) {
         // Update existing product
         const { error } = await supabase
           .from('products')
@@ -179,50 +168,18 @@ const ProductForm = () => {
             name: data.name,
             description: data.description,
             price: data.price,
+            cost_price: data.cost_price,
             barcode: data.barcode,
             sku: data.sku,
             category_id: data.category_id,
-            image_url: imageUrl,
+            image_url: data.image_url,
+            is_active: data.is_active,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', id);
+          .eq('id', productId);
 
         if (error) {
           throw error;
-        }
-
-        // Update or create stock record
-        const { data: stockData, error: stockCheckError } = await supabase
-          .from('stock')
-          .select('*')
-          .eq('product_id', id);
-
-        if (stockCheckError) throw stockCheckError;
-
-        if (stockData && stockData.length > 0) {
-          // Update existing stock
-          const { error: stockError } = await supabase
-            .from('stock')
-            .update({ 
-              quantity: data.stock_quantity,
-              updated_at: new Date().toISOString()
-            })
-            .eq('product_id', id);
-          
-          if (stockError) throw stockError;
-        } else {
-          // Create new stock record
-          const { error: stockError } = await supabase
-            .from('stock')
-            .insert({
-              product_id: id,
-              quantity: data.stock_quantity,
-              low_stock_threshold: 10, // Default value
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-          
-          if (stockError) throw stockError;
         }
 
         toast({
@@ -231,39 +188,23 @@ const ProductForm = () => {
         });
       } else {
         // Create new product
-        const { data: newProduct, error } = await supabase
+        const { error } = await supabase
           .from('products')
           .insert({
             name: data.name,
             description: data.description,
             price: data.price,
+            cost_price: data.cost_price,
             barcode: data.barcode,
             sku: data.sku,
             category_id: data.category_id,
-            image_url: imageUrl,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            image_url: data.image_url,
+            is_active: data.is_active,
           })
           .select()
-          .single();
 
         if (error) {
           throw error;
-        }
-
-        // Create stock record
-        if (newProduct) {
-          const { error: stockError } = await supabase
-            .from('stock')
-            .insert({
-              product_id: newProduct.id,
-              quantity: data.stock_quantity,
-              low_stock_threshold: 10, // Default value
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-          
-          if (stockError) throw stockError;
         }
 
         toast({
@@ -278,187 +219,270 @@ const ProductForm = () => {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Gagal menyimpan produk',
+        description: 'Gagal menyimpan data produk',
       });
     } finally {
       setLoading(false);
     }
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+
+    if (file) {
+      setImage(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const handleImageUpload = async () => {
+    if (!image) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Pilih gambar terlebih dahulu',
+      });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileExt = image.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `products/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('images')
+        .upload(filePath, image);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/images/${filePath}`;
+
+      setFormData({ ...formData, image_url: imageUrl });
+      setValue('image_url', imageUrl);
+      toast({
+        title: 'Sukses',
+        description: 'Gambar berhasil diunggah',
+      });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Gagal mengunggah gambar',
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImage(null);
+    setPreviewUrl(null);
+    setFormData({ ...formData, image_url: '' });
+    setValue('image_url', '');
+  };
+
   return (
     <AppLayout>
-      <div className="flex items-center mb-6">
-        <Button variant="ghost" onClick={() => navigate('/products')} className="mr-4">
-          <ArrowLeft className="h-4 w-4 mr-2" /> Kembali
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">
+          {productId ? 'Edit Produk' : 'Tambah Produk'}
+        </h1>
+        <Button asChild>
+          <Link to="/products">
+            <X className="mr-2 h-4 w-4" />
+            Batal
+          </Link>
         </Button>
-        <h1 className="text-2xl font-bold">{isEditing ? 'Edit Produk' : 'Tambah Produk'}</h1>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Informasi Produk</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nama Produk <span className="text-red-500">*</span></Label>
-                    <Input id="name" {...register('name')} />
-                    {errors.name && (
-                      <p className="text-sm text-red-500">{errors.name.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Deskripsi</Label>
-                    <Textarea id="description" {...register('description')} />
-                    {errors.description && (
-                      <p className="text-sm text-red-500">{errors.description.message}</p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Harga Jual <span className="text-red-500">*</span></Label>
-                      <Input id="price" type="number" {...register('price')} />
-                      {errors.price && (
-                        <p className="text-sm text-red-500">{errors.price.message}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="cost_price">Harga Modal</Label>
-                      <Input id="cost_price" type="number" {...register('cost_price')} />
-                      {errors.cost_price && (
-                        <p className="text-sm text-red-500">{errors.cost_price.message}</p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Detail Inventori</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="sku">SKU</Label>
-                      <Input id="sku" {...register('sku')} />
-                      {errors.sku && (
-                        <p className="text-sm text-red-500">{errors.sku.message}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="barcode">Barcode</Label>
-                      <Input id="barcode" {...register('barcode')} />
-                      {errors.barcode && (
-                        <p className="text-sm text-red-500">{errors.barcode.message}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Kategori</Label>
-                      <Select
-                        value={watchCategory}
-                        onValueChange={(value) => setValue('category_id', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih kategori" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="stock_quantity">Stok Awal</Label>
-                      <Input id="stock_quantity" type="number" {...register('stock_quantity')} />
-                      {errors.stock_quantity && (
-                        <p className="text-sm text-red-500">{errors.stock_quantity.message}</p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>{productId ? 'Edit Detail Produk' : 'Detail Produk Baru'}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nama Produk</Label>
+                <Input
+                  id="name"
+                  placeholder="Nama Produk"
+                  {...register('name')}
+                />
+                {errors.name && (
+                  <p className="text-sm text-red-500">{errors.name.message}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="price">Harga</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  placeholder="Harga"
+                  {...register('price', { valueAsNumber: true })}
+                />
+                {errors.price && (
+                  <p className="text-sm text-red-500">{errors.price.message}</p>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Gambar Produk</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-col items-center">
-                    <div className="w-full aspect-square bg-neutral-100 flex items-center justify-center mb-4 overflow-hidden rounded-md">
-                      {imagePreview ? (
-                        <img
-                          src={imagePreview}
-                          alt="Preview"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="text-neutral-400 flex flex-col items-center">
-                          <Upload size={48} />
-                          <p className="mt-2">Tidak ada gambar</p>
-                        </div>
-                      )}
-                    </div>
-                    <Label
-                      htmlFor="image"
-                      className="bg-primary-500 text-white px-4 py-2 rounded cursor-pointer hover:bg-primary-600 transition-colors"
-                    >
-                      Pilih Gambar
-                    </Label>
-                    <Input
-                      id="image"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageChange}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cost_price">Harga Modal</Label>
+                <Input
+                  id="cost_price"
+                  type="number"
+                  placeholder="Harga Modal"
+                  {...register('cost_price', { valueAsNumber: true })}
+                />
+                {errors.cost_price && (
+                  <p className="text-sm text-red-500">{errors.cost_price.message}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category_id">Kategori</Label>
+                <Select onValueChange={(value) => setValue('category_id', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih Kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.category_id && (
+                  <p className="text-sm text-red-500">{errors.category_id.message}</p>
+                )}
+              </div>
+            </div>
 
-              <div className="flex justify-end space-x-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate('/products')}
-                >
-                  Batal
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="barcode">Barcode</Label>
+                <Input
+                  id="barcode"
+                  placeholder="Barcode"
+                  {...register('barcode')}
+                />
+                {errors.barcode && (
+                  <p className="text-sm text-red-500">{errors.barcode.message}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sku">SKU</Label>
+                <Input
+                  id="sku"
+                  placeholder="SKU"
+                  {...register('sku')}
+                />
+                {errors.sku && (
+                  <p className="text-sm text-red-500">{errors.sku.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Deskripsi</Label>
+              <Textarea
+                id="description"
+                placeholder="Deskripsi"
+                {...register('description')}
+              />
+              {errors.description && (
+                <p className="text-sm text-red-500">{errors.description.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="image">Gambar Produk</Label>
+              <div className="flex items-center space-x-4">
+                <Input
+                  type="file"
+                  id="image"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                <Label htmlFor="image" className="cursor-pointer bg-neutral-100 hover:bg-neutral-200 rounded-md px-4 py-2">
+                  Pilih Gambar
+                </Label>
+                {previewUrl && (
+                  <div className="relative">
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="w-24 h-24 object-cover rounded-md"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 bg-white/50 text-red-500 shadow-sm"
+                      onClick={handleRemoveImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                {!formData.image_url && !previewUrl && (
+                  <div className="h-24 w-24 rounded-md bg-neutral-100 flex items-center justify-center">
+                    <Plus className="h-6 w-6 text-neutral-500" />
+                  </div>
+                )}
+                {formData.image_url && !previewUrl && (
+                  <div className="relative">
+                    <img
+                      src={formData.image_url}
+                      alt="Preview"
+                      className="w-24 h-24 object-cover rounded-md"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 bg-white/50 text-red-500 shadow-sm"
+                      onClick={handleRemoveImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                <Button type="button" onClick={handleImageUpload} disabled={uploading || !image}>
+                  {uploading ? (
                     <span className="flex items-center">
                       <span className="animate-spin mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
-                      Menyimpan...
+                      Mengunggah...
                     </span>
                   ) : (
-                    'Simpan Produk'
+                    'Unggah Gambar'
                   )}
                 </Button>
               </div>
+              {errors.image_url && (
+                <p className="text-sm text-red-500">{errors.image_url.message}</p>
+              )}
             </div>
-          </div>
-        </form>
-      )}
+
+            <Button type="submit" disabled={loading}>
+              {loading ? (
+                <span className="flex items-center">
+                  <span className="animate-spin mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
+                  Menyimpan...
+                </span>
+              ) : (
+                'Simpan'
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </AppLayout>
   );
 };
