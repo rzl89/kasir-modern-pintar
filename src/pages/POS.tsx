@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCart } from '@/contexts/CartContext';
 import { supabase } from '@/lib/supabase';
 import { Product, Category, CartItem, Transaction } from '@/lib/types';
-import { Search, Plus, Minus, Trash2, ShoppingBag, CreditCard, Printer, Bookmark, Tag, BarcodeScan } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingBag, CreditCard, Printer, Bookmark, Tag, Barcode } from 'lucide-react';
 
 const POS = () => {
   const { toast } = useToast();
@@ -45,12 +44,10 @@ const POS = () => {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [loading1, setLoading1] = useState(true);
 
-  // Fetch products and categories
   useEffect(() => {
     const fetchData = async () => {
       setLoading1(true);
       try {
-        // Fetch categories
         const { data: categoriesData, error: categoriesError } = await supabase
           .from('categories')
           .select('*')
@@ -62,7 +59,6 @@ const POS = () => {
           setCategories(categoriesData as Category[]);
         }
 
-        // Fetch products
         const { data: productsData, error: productsError } = await supabase
           .from('products')
           .select('*, category:categories(name)')
@@ -89,7 +85,6 @@ const POS = () => {
     fetchData();
   }, [toast]);
 
-  // Filter products based on search query and active category
   useEffect(() => {
     let filtered = [...products];
 
@@ -109,7 +104,6 @@ const POS = () => {
     setFilteredProducts(filtered);
   }, [products, searchQuery, activeCategory]);
 
-  // Handle barcode input
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!barcodeInput.trim()) return;
@@ -167,7 +161,6 @@ const POS = () => {
       setIsPaymentModalOpen(false);
       setIsReceiptModalOpen(true);
       
-      // Reset form fields
       setCustomerName('');
       setNotes('');
       setDiscountAmount(0);
@@ -176,7 +169,6 @@ const POS = () => {
   };
 
   const handlePrintReceipt = () => {
-    // In a real application, implement receipt printing here
     window.print();
     setIsReceiptModalOpen(false);
   };
@@ -188,7 +180,6 @@ const POS = () => {
   return (
     <AppLayout>
       <div className="flex flex-col lg:flex-row h-[calc(100vh-100px)] gap-6">
-        {/* Products Section */}
         <div className="lg:w-2/3 flex flex-col">
           <div className="mb-4 flex gap-4">
             <div className="flex-1">
@@ -204,7 +195,7 @@ const POS = () => {
             </div>
             <form onSubmit={handleBarcodeSubmit} className="flex-1 flex gap-2">
               <div className="relative flex-1">
-                <BarcodeScan className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
                 <Input
                   placeholder="Scan barcode..."
                   className="pl-10"
@@ -290,7 +281,6 @@ const POS = () => {
               )}
             </TabsContent>
 
-            {/* Render the same content for each category tab */}
             {categories.map((category) => (
               <TabsContent key={category.id} value={category.id} className="flex-1 mt-0 bg-neutral-50 rounded-md p-4 overflow-hidden">
                 {loading1 ? (
@@ -351,7 +341,6 @@ const POS = () => {
           </Tabs>
         </div>
 
-        {/* Cart Section */}
         <div className="lg:w-1/3 flex flex-col">
           <Card className="flex-1 flex flex-col">
             <CardHeader className="pb-0">
@@ -445,7 +434,6 @@ const POS = () => {
         </div>
       </div>
 
-      {/* Checkout Modal */}
       <Dialog open={isCheckoutModalOpen} onOpenChange={setIsCheckoutModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -490,7 +478,6 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Payment Modal */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -558,7 +545,6 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Receipt Modal */}
       <Dialog open={isReceiptModalOpen} onOpenChange={setIsReceiptModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
