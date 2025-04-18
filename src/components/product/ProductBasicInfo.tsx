@@ -54,18 +54,6 @@ export const ProductBasicInfo = ({ form }: ProductBasicInfoProps) => {
             <p className="text-sm text-red-500">{errors.cost_price.message}</p>
           )}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="stock_quantity">Stok</Label>
-          <Input
-            id="stock_quantity"
-            type="number"
-            placeholder="Jumlah Stok"
-            {...register('stock_quantity', { valueAsNumber: true })}
-          />
-          {errors.stock_quantity && (
-            <p className="text-sm text-red-500">{errors.stock_quantity.message}</p>
-          )}
-        </div>
       </div>
 
       <div className="space-y-2">

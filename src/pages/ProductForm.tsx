@@ -9,6 +9,7 @@ import { useProductForm } from '@/hooks/useProductForm';
 import { ProductBasicInfo } from '@/components/product/ProductBasicInfo';
 import { ProductDetails } from '@/components/product/ProductDetails';
 import { ProductImageUpload } from '@/components/product/ProductImageUpload';
+import { ProductStock } from '@/components/product/ProductStock';
 
 const ProductForm = () => {
   const { form, loading, productId, loadProductData, onSubmit } = useProductForm();
@@ -41,6 +42,7 @@ const ProductForm = () => {
           <form onSubmit={onSubmit} className="space-y-6">
             <ProductBasicInfo form={form} />
             <ProductDetails form={form} />
+            <ProductStock form={form} />
             <ProductImageUpload
               imageUrl={form.watch('image_url') || ''}
               onImageChange={(url) => form.setValue('image_url', url)}
