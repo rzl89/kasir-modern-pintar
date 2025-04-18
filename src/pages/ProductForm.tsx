@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,8 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase';
-import { STORAGE_URL } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { Category, Product } from '@/lib/types';
 import { ArrowLeft, Upload } from 'lucide-react';
 
@@ -161,20 +159,26 @@ const ProductForm = () => {
           throw uploadError;
         }
 
-        imageUrl = `${STORAGE_URL}/product-images/${fileName}`;
+        imageUrl = `${supabase.storageUrl}/object/public/product-images/${fileName}`;
       }
-
-      const productData = {
-        ...data,
-        image_url: imageUrl,
-        updated_at: new Date().toISOString(),
-      };
 
       if (isEditing) {
         // Update existing product
         const { error } = await supabase
           .from('products')
-          .update(productData)
+          .update({
+            name: data.name,
+            description: data.description,
+            price: data.price,
+            cost_price: data.cost_price,
+            sku: data.sku,
+            barcode: data.barcode,
+            category_id: data.category_id,
+            stock_quantity: data.stock_quantity,
+            is_active: data.is_active,
+            image_url: imageUrl,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', id);
 
         if (error) {
@@ -190,8 +194,18 @@ const ProductForm = () => {
         const { error } = await supabase
           .from('products')
           .insert({
-            ...productData,
+            name: data.name,
+            description: data.description,
+            price: data.price,
+            cost_price: data.cost_price,
+            sku: data.sku,
+            barcode: data.barcode,
+            category_id: data.category_id,
+            stock_quantity: data.stock_quantity,
+            is_active: data.is_active,
+            image_url: imageUrl,
             created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           });
 
         if (error) {

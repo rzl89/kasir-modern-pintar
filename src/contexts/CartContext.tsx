@@ -1,6 +1,6 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CartItem, Product, ShoppingCart, Transaction } from '@/lib/types';
@@ -39,13 +39,21 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     const fetchSettings = async () => {
       const { data, error } = await supabase
         .from('settings')
-        .select('tax_rate')
+        .select('*')
+        .eq('key', 'tax_percentage')
         .single();
       
       if (error) {
         console.error('Error fetching tax rate:', error);
       } else if (data) {
-        setTaxRate(data.tax_rate);
+        // Assuming the tax percentage is stored in the value field as JSON
+        try {
+          const value = JSON.parse(data.value);
+          setTaxRate(value.percentage || 0);
+        } catch (e) {
+          console.error('Error parsing tax rate:', e);
+          setTaxRate(0);
+        }
       }
     };
 
@@ -225,7 +233,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const { data: transactionData, error: transactionError } = await supabase
         .from('transactions')
         .insert({
-          cashier_id: user.id,
+          user_id: user.id,
           customer_name: cart.customer_name,
           subtotal: cart.subtotal,
           discount_amount: cart.discount_amount,
@@ -248,10 +256,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       const transactionItems = cart.items.map(item => ({
         transaction_id: transaction.id,
         product_id: item.product_id,
-        product_name: item.product.name,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        discount_amount: item.discount_amount || 0,
         subtotal: item.unit_price * item.quantity - (item.discount_amount || 0),
       }));
 
@@ -295,12 +301,9 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           .from('stock_adjustments')
           .insert({
             product_id: item.product_id,
-            previous_quantity: currentStock,
-            adjusted_quantity: -item.quantity,
-            new_quantity: newStock,
             adjustment_type: 'sale',
+            quantity: item.quantity,
             reason: `Transaction #${transaction.id}`,
-            adjusted_by: user.id,
           });
 
         if (adjustmentError) {

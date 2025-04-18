@@ -7,11 +7,17 @@ import { Link } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, FileUp, FileDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/lib/types';
 
+type ProductWithCategory = Product & {
+  categories?: {
+    name: string;
+  };
+};
+
 const Products = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductWithCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
@@ -22,14 +28,14 @@ const Products = () => {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('*, category:categories(name)')
+          .select('*, categories(name)')
           .order('name');
 
         if (error) {
           throw error;
         }
 
-        setProducts(data as Product[]);
+        setProducts(data as ProductWithCategory[]);
       } catch (error) {
         console.error('Error fetching products:', error);
         toast({
@@ -115,7 +121,7 @@ const Products = () => {
                     <tr key={product.id} className="border-b hover:bg-neutral-50">
                       <td className="py-3">{product.name}</td>
                       <td className="py-3">{product.sku || product.barcode || '-'}</td>
-                      <td className="py-3">{product.category?.name || '-'}</td>
+                      <td className="py-3">{product.categories?.name || '-'}</td>
                       <td className="py-3">Rp {product.price.toLocaleString('id-ID')}</td>
                       <td className="py-3">{product.stock_quantity}</td>
                       <td className="py-3 flex justify-center space-x-2">

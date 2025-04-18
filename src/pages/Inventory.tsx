@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,17 +7,23 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/lib/types';
 import { Search, Plus, Minus, AlertCircle, ArrowUp, ArrowDown, Filter } from 'lucide-react';
 
+type ProductWithCategory = Product & {
+  categories?: {
+    name: string;
+  };
+};
+
 const Inventory = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductWithCategory[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<ProductWithCategory[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [adjustmentModalOpen, setAdjustmentModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithCategory | null>(null);
   const [adjustmentType, setAdjustmentType] = useState<'add' | 'subtract'>('add');
   const [adjustmentQuantity, setAdjustmentQuantity] = useState(1);
   const [adjustmentReason, setAdjustmentReason] = useState('');
@@ -31,15 +36,15 @@ const Inventory = () => {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('*, category:categories(name)')
+          .select('*, categories(name)')
           .order('name');
 
         if (error) {
           throw error;
         }
 
-        setProducts(data as Product[]);
-        setFilteredProducts(data as Product[]);
+        setProducts(data as ProductWithCategory[]);
+        setFilteredProducts(data as ProductWithCategory[]);
       } catch (error) {
         console.error('Error fetching inventory:', error);
         toast({
@@ -65,7 +70,7 @@ const Inventory = () => {
     setFilteredProducts(filtered);
   }, [searchQuery, products]);
 
-  const openAdjustmentModal = (product: Product, type: 'add' | 'subtract') => {
+  const openAdjustmentModal = (product: ProductWithCategory, type: 'add' | 'subtract') => {
     setSelectedProduct(product);
     setAdjustmentType(type);
     setAdjustmentQuantity(1);
@@ -109,7 +114,6 @@ const Inventory = () => {
           adjustment_type: adjustmentType,
           quantity: adjustmentQuantity,
           reason: adjustmentReason,
-          created_at: new Date().toISOString(),
         });
 
       if (adjustmentError) {
@@ -218,7 +222,7 @@ const Inventory = () => {
                       <tr key={product.id} className="border-b hover:bg-neutral-50">
                         <td className="py-3">{product.name}</td>
                         <td className="py-3">{product.sku || product.barcode || '-'}</td>
-                        <td className="py-3">{product.category?.name || '-'}</td>
+                        <td className="py-3">{product.categories?.name || '-'}</td>
                         <td className="py-3 text-center">{product.stock_quantity}</td>
                         <td className="py-3">
                           <div className={`px-2 py-1 rounded-full text-xs font-medium inline-block mx-auto ${statusClass}`}>

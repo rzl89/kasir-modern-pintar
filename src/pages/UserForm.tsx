@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -214,7 +214,7 @@ const UserForm = () => {
                     Peran <span className="text-red-500">*</span>
                   </Label>
                   <RadioGroup
-                    value={register('role').value}
+                    defaultValue={register('role').value}
                     onValueChange={(value) => setValue('role', value as 'admin' | 'cashier')}
                   >
                     <div className="flex items-center space-x-2">
