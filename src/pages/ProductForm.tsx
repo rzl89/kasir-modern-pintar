@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { STORAGE_URL } from '@/integrations/supabase/client';
 import { Category, Product } from '@/lib/types';
 import { ArrowLeft, Upload } from 'lucide-react';
 
@@ -90,9 +92,13 @@ const ProductForm = () => {
       const fetchProduct = async () => {
         setLoading(true);
         try {
+          // Join with stock table to get quantity
           const { data, error } = await supabase
             .from('products')
-            .select('*')
+            .select(`
+              *,
+              stock(quantity)
+            `)
             .eq('id', id)
             .single();
 
@@ -101,21 +107,22 @@ const ProductForm = () => {
           }
 
           if (data) {
-            const product = data as Product;
+            const stockQuantity = data.stock && data.stock[0] ? data.stock[0].quantity : 0;
+            
             reset({
-              name: product.name,
-              description: product.description || '',
-              price: product.price,
-              cost_price: product.cost_price || 0,
-              sku: product.sku || '',
-              barcode: product.barcode || '',
-              category_id: product.category_id || '',
-              stock_quantity: product.stock_quantity,
-              is_active: product.is_active,
+              name: data.name,
+              description: data.description || '',
+              price: data.price,
+              cost_price: 0, // Default since it might not exist in the DB schema
+              sku: data.sku || '',
+              barcode: data.barcode || '',
+              category_id: data.category_id || '',
+              stock_quantity: stockQuantity,
+              is_active: true, // Default since it might not exist in the DB schema
             });
 
-            if (product.image_url) {
-              setImagePreview(product.image_url);
+            if (data.image_url) {
+              setImagePreview(data.image_url);
             }
           }
         } catch (error) {
@@ -159,7 +166,7 @@ const ProductForm = () => {
           throw uploadError;
         }
 
-        imageUrl = `${supabase.storageUrl}/object/public/product-images/${fileName}`;
+        imageUrl = `${STORAGE_URL}/product-images/${fileName}`;
       }
 
       if (isEditing) {
@@ -170,12 +177,9 @@ const ProductForm = () => {
             name: data.name,
             description: data.description,
             price: data.price,
-            cost_price: data.cost_price,
-            sku: data.sku,
             barcode: data.barcode,
+            sku: data.sku,
             category_id: data.category_id,
-            stock_quantity: data.stock_quantity,
-            is_active: data.is_active,
             image_url: imageUrl,
             updated_at: new Date().toISOString(),
           })
@@ -185,31 +189,79 @@ const ProductForm = () => {
           throw error;
         }
 
+        // Update or create stock record
+        const { data: stockData, error: stockCheckError } = await supabase
+          .from('stock')
+          .select('*')
+          .eq('product_id', id);
+
+        if (stockCheckError) throw stockCheckError;
+
+        if (stockData && stockData.length > 0) {
+          // Update existing stock
+          const { error: stockError } = await supabase
+            .from('stock')
+            .update({ 
+              quantity: data.stock_quantity,
+              updated_at: new Date().toISOString()
+            })
+            .eq('product_id', id);
+          
+          if (stockError) throw stockError;
+        } else {
+          // Create new stock record
+          const { error: stockError } = await supabase
+            .from('stock')
+            .insert({
+              product_id: id,
+              quantity: data.stock_quantity,
+              low_stock_threshold: 10, // Default value
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+          
+          if (stockError) throw stockError;
+        }
+
         toast({
           title: 'Sukses',
           description: 'Produk berhasil diperbarui',
         });
       } else {
         // Create new product
-        const { error } = await supabase
+        const { data: newProduct, error } = await supabase
           .from('products')
           .insert({
             name: data.name,
             description: data.description,
             price: data.price,
-            cost_price: data.cost_price,
-            sku: data.sku,
             barcode: data.barcode,
+            sku: data.sku,
             category_id: data.category_id,
-            stock_quantity: data.stock_quantity,
-            is_active: data.is_active,
             image_url: imageUrl,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          });
+          })
+          .select()
+          .single();
 
         if (error) {
           throw error;
+        }
+
+        // Create stock record
+        if (newProduct) {
+          const { error: stockError } = await supabase
+            .from('stock')
+            .insert({
+              product_id: newProduct.id,
+              quantity: data.stock_quantity,
+              low_stock_threshold: 10, // Default value
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+          
+          if (stockError) throw stockError;
         }
 
         toast({

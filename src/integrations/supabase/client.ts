@@ -11,5 +11,5 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-// Add storageUrl property for easy access to storage URLs
-supabase.storageUrl = `${SUPABASE_URL}/storage/v1`;
+// Define storage URL for easy access
+export const STORAGE_URL = `${SUPABASE_URL}/storage/v1/object/public`;

@@ -14,6 +14,9 @@ type ProductWithCategory = Product & {
   categories?: {
     name: string;
   };
+  stock?: {
+    quantity: number;
+  }[];
 };
 
 const Products = () => {
@@ -28,14 +31,24 @@ const Products = () => {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('*, categories(name)')
+          .select(`
+            *,
+            categories(*),
+            stock(quantity)
+          `)
           .order('name');
 
         if (error) {
           throw error;
         }
 
-        setProducts(data as ProductWithCategory[]);
+        // Transform data to include stock quantity
+        const productsWithData = data.map(product => ({
+          ...product,
+          stock_quantity: product.stock && product.stock[0] ? product.stock[0].quantity : 0
+        })) as ProductWithCategory[];
+
+        setProducts(productsWithData);
       } catch (error) {
         console.error('Error fetching products:', error);
         toast({

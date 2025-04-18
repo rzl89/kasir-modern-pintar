@@ -20,7 +20,8 @@ type UserProfile = {
   id: string;
   email: string;
   full_name: string;
-  role: Role;
+  role_id: string;
+  role?: Role;
 };
 
 const formSchema = z.object({
@@ -62,20 +63,36 @@ const UserForm = () => {
       const fetchUser = async () => {
         setLoading(true);
         try {
+          // Join with roles table to get role information
           const { data, error } = await supabase
             .from('users')
-            .select('*')
+            .select(`
+              *,
+              roles(name)
+            `)
             .eq('id', id)
             .single();
 
           if (error) throw error;
 
-          const user = data as UserProfile;
+          // Map the database user to UserProfile type
+          const userRole = data.roles ? 
+            (data.roles.name === 'admin' ? 'admin' : 'cashier') as Role : 
+            'cashier' as Role;
+
+          const user: UserProfile = {
+            id: data.id,
+            email: data.email || '',
+            full_name: data.full_name || '',
+            role_id: data.role_id || '',
+            role: userRole
+          };
+
           reset({
             fullName: user.full_name,
             email: user.email,
             password: '',
-            role: user.role,
+            role: user.role || 'cashier',
           });
         } catch (error) {
           console.error('Error fetching user:', error);
@@ -98,9 +115,18 @@ const UserForm = () => {
     setLoading(true);
     try {
       if (isEditing) {
+        // First get the role_id for the selected role
+        const { data: roleData, error: roleError } = await supabase
+          .from('roles')
+          .select('id')
+          .eq('name', data.role)
+          .single();
+
+        if (roleError) throw roleError;
+
         const updateData: Partial<UserProfile> = {
           full_name: data.fullName,
-          role: data.role,
+          role_id: roleData.id,
         };
 
         const { error } = await supabase
@@ -214,7 +240,7 @@ const UserForm = () => {
                     Peran <span className="text-red-500">*</span>
                   </Label>
                   <RadioGroup
-                    defaultValue={register('role').value}
+                    defaultValue="cashier"
                     onValueChange={(value) => setValue('role', value as 'admin' | 'cashier')}
                   >
                     <div className="flex items-center space-x-2">

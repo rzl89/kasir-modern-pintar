@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,17 +35,29 @@ const Inventory = () => {
     const fetchInventory = async () => {
       setLoading(true);
       try {
+        // Join products with categories and stock tables
         const { data, error } = await supabase
           .from('products')
-          .select('*, categories(name)')
+          .select(`
+            *,
+            categories(*),
+            stock(quantity)
+          `)
           .order('name');
 
         if (error) {
           throw error;
         }
 
-        setProducts(data as ProductWithCategory[]);
-        setFilteredProducts(data as ProductWithCategory[]);
+        // Transform data to include stock quantity
+        const productsWithStock = data.map(product => ({
+          ...product,
+          stock_quantity: product.stock && product.stock[0] ? product.stock[0].quantity : 0,
+          categories: product.categories
+        })) as ProductWithCategory[];
+
+        setProducts(productsWithStock);
+        setFilteredProducts(productsWithStock);
       } catch (error) {
         console.error('Error fetching inventory:', error);
         toast({
@@ -96,29 +109,37 @@ const Inventory = () => {
         return;
       }
 
-      // Update product stock
-      const { error: updateError } = await supabase
-        .from('products')
-        .update({ stock_quantity: newQuantity })
-        .eq('id', selectedProduct.id);
+      // Update product stock in the stock table
+      const { data: stockData, error: stockCheckError } = await supabase
+        .from('stock')
+        .select('*')
+        .eq('product_id', selectedProduct.id);
 
-      if (updateError) {
-        throw updateError;
+      if (stockCheckError) throw stockCheckError;
+
+      let updateError;
+      if (stockData && stockData.length > 0) {
+        // Update existing stock record
+        const { error } = await supabase
+          .from('stock')
+          .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
+          .eq('product_id', selectedProduct.id);
+        updateError = error;
+      } else {
+        // Create new stock record
+        const { error } = await supabase
+          .from('stock')
+          .insert({
+            product_id: selectedProduct.id,
+            quantity: newQuantity,
+            low_stock_threshold: 10, // Default value
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        updateError = error;
       }
 
-      // Record stock adjustment
-      const { error: adjustmentError } = await supabase
-        .from('stock_adjustments')
-        .insert({
-          product_id: selectedProduct.id,
-          adjustment_type: adjustmentType,
-          quantity: adjustmentQuantity,
-          reason: adjustmentReason,
-        });
-
-      if (adjustmentError) {
-        throw adjustmentError;
-      }
+      if (updateError) throw updateError;
 
       // Update local state
       setProducts(products.map(product => 

@@ -45,10 +45,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       
       if (error) {
         console.error('Error fetching tax rate:', error);
-      } else if (data) {
-        // Assuming the tax percentage is stored in the value field as JSON
+      } else if (data && data.value) {
         try {
-          const value = JSON.parse(data.value);
+          // Handle parsing the value which could be a number or string
+          const value = typeof data.value === 'string' 
+            ? JSON.parse(data.value) 
+            : data.value;
+          
           setTaxRate(value.percentage || 0);
         } catch (e) {
           console.error('Error parsing tax rate:', e);
@@ -250,7 +253,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(`Error creating transaction: ${transactionError.message}`);
       }
 
-      const transaction = transactionData as Transaction;
+      // Cast transaction data to Transaction type
+      const transaction = {
+        ...transactionData,
+        cashier_id: transactionData.user_id, // Map user_id to cashier_id for type compatibility
+      } as Transaction;
 
       // Insert transaction items
       const transactionItems = cart.items.map(item => ({
@@ -271,43 +278,45 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       // Update product stock quantities
       for (const item of cart.items) {
-        const { data: productData, error: productError } = await supabase
-          .from('products')
-          .select('stock_quantity')
-          .eq('id', item.product_id)
+        // Fetch current stock from stock table, not directly from products
+        const { data: stockData, error: stockError } = await supabase
+          .from('stock')
+          .select('quantity')
+          .eq('product_id', item.product_id)
           .single();
 
-        if (productError) {
-          console.error(`Error fetching product ${item.product_id}:`, productError);
+        if (stockError) {
+          console.error(`Error fetching stock for product ${item.product_id}:`, stockError);
           continue;
         }
 
-        const currentStock = productData.stock_quantity;
+        const currentStock = stockData?.quantity || 0;
         const newStock = Math.max(0, currentStock - item.quantity);
 
-        // Update product stock
+        // Update stock quantity in stock table
         const { error: updateError } = await supabase
-          .from('products')
-          .update({ stock_quantity: newStock })
-          .eq('id', item.product_id);
+          .from('stock')
+          .update({ quantity: newStock })
+          .eq('product_id', item.product_id);
 
         if (updateError) {
-          console.error(`Error updating product stock for ${item.product_id}:`, updateError);
+          console.error(`Error updating stock for ${item.product_id}:`, updateError);
           continue;
         }
 
-        // Record stock adjustment
+        // Create a stock adjustment record
         const { error: adjustmentError } = await supabase
-          .from('stock_adjustments')
+          .from('stock')
           .insert({
             product_id: item.product_id,
-            adjustment_type: 'sale',
-            quantity: item.quantity,
-            reason: `Transaction #${transaction.id}`,
+            quantity: newStock,
+            low_stock_threshold: 10, // Default value
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           });
 
         if (adjustmentError) {
-          console.error(`Error creating stock adjustment for ${item.product_id}:`, adjustmentError);
+          console.error(`Error creating stock record for ${item.product_id}:`, adjustmentError);
         }
       }
 
