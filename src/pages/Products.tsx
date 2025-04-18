@@ -14,9 +14,7 @@ type ProductWithCategory = Product & {
   categories?: {
     name: string;
   };
-  stock?: {
-    quantity: number;
-  }[];
+  stock_quantity?: number;
 };
 
 const Products = () => {
@@ -45,8 +43,9 @@ const Products = () => {
         // Transform data to include stock quantity
         const productsWithData = data.map(product => ({
           ...product,
-          stock_quantity: product.stock && product.stock[0] ? product.stock[0].quantity : 0
-        })) as ProductWithCategory[];
+          stock_quantity: product.stock && product.stock[0] ? product.stock[0].quantity : 0,
+          is_active: true // Default value since it might be missing in the DB
+        })) as unknown as ProductWithCategory[];
 
         setProducts(productsWithData);
       } catch (error) {

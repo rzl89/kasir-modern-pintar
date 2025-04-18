@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { STORAGE_URL } from '@/integrations/supabase/client';
-import { Category, Product } from '@/lib/types';
+import { Category } from '@/lib/types';
 import { ArrowLeft, Upload } from 'lucide-react';
 
 const formSchema = z.object({
@@ -56,6 +56,8 @@ const ProductForm = () => {
       description: '',
       price: 0,
       cost_price: 0,
+      sku: '',
+      barcode: '',
       stock_quantity: 0,
       is_active: true,
     },
@@ -113,12 +115,12 @@ const ProductForm = () => {
               name: data.name,
               description: data.description || '',
               price: data.price,
-              cost_price: 0, // Default since it might not exist in the DB schema
+              cost_price: data.cost_price || 0,
               sku: data.sku || '',
               barcode: data.barcode || '',
               category_id: data.category_id || '',
               stock_quantity: stockQuantity,
-              is_active: true, // Default since it might not exist in the DB schema
+              is_active: data.is_active !== undefined ? data.is_active : true,
             });
 
             if (data.image_url) {

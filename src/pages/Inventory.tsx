@@ -16,6 +16,7 @@ type ProductWithCategory = Product & {
   categories?: {
     name: string;
   };
+  stock_quantity?: number;
 };
 
 const Inventory = () => {
@@ -53,8 +54,8 @@ const Inventory = () => {
         const productsWithStock = data.map(product => ({
           ...product,
           stock_quantity: product.stock && product.stock[0] ? product.stock[0].quantity : 0,
-          categories: product.categories
-        })) as ProductWithCategory[];
+          is_active: true // Default value if missing in DB
+        })) as unknown as ProductWithCategory[];
 
         setProducts(productsWithStock);
         setFilteredProducts(productsWithStock);
@@ -97,8 +98,8 @@ const Inventory = () => {
     setAdjustingStock(true);
     try {
       const newQuantity = adjustmentType === 'add'
-        ? selectedProduct.stock_quantity + adjustmentQuantity
-        : selectedProduct.stock_quantity - adjustmentQuantity;
+        ? (selectedProduct.stock_quantity || 0) + adjustmentQuantity
+        : (selectedProduct.stock_quantity || 0) - adjustmentQuantity;
 
       if (newQuantity < 0) {
         toast({

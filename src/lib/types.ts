@@ -15,6 +15,7 @@ export interface Category {
   description?: string;
   parent_id?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Product {
@@ -27,11 +28,9 @@ export interface Product {
   sku?: string;
   image_url?: string;
   category_id?: string;
-  stock_quantity: number;
-  min_stock_threshold?: number;
-  is_active: boolean;
+  is_active?: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface TransactionItem {
@@ -49,8 +48,9 @@ export interface TransactionItem {
 
 export interface Transaction {
   id: string;
-  cashier_id: string;
+  user_id: string;
   customer_name?: string;
+  customer_email?: string;
   subtotal: number;
   discount_amount?: number;
   tax_amount?: number;
@@ -59,22 +59,27 @@ export interface Transaction {
   payment_status: 'pending' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;
+  updated_at?: string;
   transaction_items?: TransactionItem[];
-  cashier?: User;
 }
 
 export interface StockAdjustment {
   id: string;
   product_id: string;
-  previous_quantity: number;
-  adjusted_quantity: number;
-  new_quantity: number;
-  adjustment_type: 'manual' | 'sale' | 'return' | 'purchase';
-  reason?: string;
-  adjusted_by: string;
+  adjustment_type: string;
+  quantity: number;
+  reason: string;
+  notes?: string;
   created_at: string;
-  product?: Product;
-  user?: User;
+}
+
+export interface Stock {
+  id: string;
+  product_id: string;
+  quantity: number;
+  low_stock_threshold?: number;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface CartItem {
@@ -97,14 +102,13 @@ export interface ShoppingCart {
 
 export interface AppSettings {
   id: string;
-  business_name: string;
-  business_address?: string;
-  business_phone?: string;
-  business_email?: string;
-  tax_rate: number;
-  receipt_footer?: string;
-  currency: string;
-  updated_at: string;
+  store_name?: string;
+  store_address?: string;
+  store_phone?: string;
+  enable_tax?: boolean;
+  tax_percentage?: number;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface DateRange {
