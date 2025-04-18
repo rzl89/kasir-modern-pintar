@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { z } from 'zod';
@@ -11,7 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
+import { STORAGE_URL } from '@/lib/supabase';
 import { Product, Category } from '@/lib/types';
 import { Plus, X } from 'lucide-react';
 
@@ -133,9 +135,9 @@ const ProductForm = () => {
         name: data.name || '',
         description: data.description || '',
         price: data.price || 0,
-        cost_price: data.cost_price || 0,
+        cost_price: data.cost_price !== undefined ? data.cost_price : 0,
         barcode: data.barcode || '',
-        sku: data.sku || '',
+        sku: data.sku !== undefined ? data.sku : '',
         category_id: data.category_id || '',
         image_url: data.image_url || '',
         stock_quantity: data.stock?.[0]?.quantity || 0,
@@ -182,13 +184,30 @@ const ProductForm = () => {
           throw error;
         }
 
+        // Update stock separately if needed
+        if (data.stock_quantity !== undefined) {
+          const { error: stockError } = await supabase
+            .from('stock')
+            .upsert({
+              product_id: productId,
+              quantity: data.stock_quantity,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'product_id'
+            });
+
+          if (stockError) {
+            throw stockError;
+          }
+        }
+
         toast({
           title: 'Sukses',
           description: 'Produk berhasil diperbarui',
         });
       } else {
         // Create new product
-        const { error } = await supabase
+        const { data: newProduct, error } = await supabase
           .from('products')
           .insert({
             name: data.name,
@@ -201,10 +220,24 @@ const ProductForm = () => {
             image_url: data.image_url,
             is_active: data.is_active,
           })
-          .select()
+          .select();
 
         if (error) {
           throw error;
+        }
+
+        // Create stock record if stock_quantity is provided
+        if (data.stock_quantity !== undefined && newProduct && newProduct[0]) {
+          const { error: stockError } = await supabase
+            .from('stock')
+            .insert({
+              product_id: newProduct[0].id,
+              quantity: data.stock_quantity
+            });
+
+          if (stockError) {
+            throw stockError;
+          }
         }
 
         toast({
@@ -259,7 +292,7 @@ const ProductForm = () => {
         throw uploadError;
       }
 
-      const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/images/${filePath}`;
+      const imageUrl = `${STORAGE_URL}/images/${filePath}`;
 
       setFormData({ ...formData, image_url: imageUrl });
       setValue('image_url', imageUrl);

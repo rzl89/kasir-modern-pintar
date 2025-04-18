@@ -1,4 +1,3 @@
-
 export type Json =
   | string
   | number
@@ -53,8 +52,7 @@ export interface Database {
           sku: string | null
           image_url: string | null
           category_id: string | null
-          stock_quantity: number
-          is_active: boolean
+          is_active: boolean | null
           created_at: string
           updated_at: string | null
         }
@@ -68,8 +66,7 @@ export interface Database {
           sku?: string | null
           image_url?: string | null
           category_id?: string | null
-          stock_quantity?: number
-          is_active?: boolean
+          is_active?: boolean | null
           created_at?: string
           updated_at?: string | null
         }
@@ -83,8 +80,7 @@ export interface Database {
           sku?: string | null
           image_url?: string | null
           category_id?: string | null
-          stock_quantity?: number
-          is_active?: boolean
+          is_active?: boolean | null
           created_at?: string
           updated_at?: string | null
         }
