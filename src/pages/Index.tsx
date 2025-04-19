@@ -1,23 +1,18 @@
 
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 
 const Index = () => {
-  const { checkSession } = useAuth();
+  const { session, userLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const session = await checkSession();
-      if (session) {
-        navigate('/dashboard');
-      }
-    };
-    
-    checkAuth();
-  }, [checkSession, navigate]);
+    if (!userLoading && session) {
+      navigate('/dashboard');
+    }
+  }, [session, userLoading, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
