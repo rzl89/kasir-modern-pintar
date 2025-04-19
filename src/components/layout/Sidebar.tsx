@@ -1,165 +1,84 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
-import { 
-  LayoutDashboard, 
-  PackageIcon, 
-  ShoppingCart, 
-  BarChart3, 
-  Settings, 
-  Users, 
-  LogOut, 
-  Menu, 
-  X, 
-  Receipt,
-  Warehouse,
-  User
-} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+import { Home, ShoppingCart, Package, Settings, Users, BarChart, User } from 'lucide-react';
 
 export const Sidebar = () => {
-  const { pathname } = useLocation();
-  const { signOut, isAdmin } = useAuth();
-  const [expanded, setExpanded] = useState(true);
+  const location = useLocation();
+  const { signOut, loading } = useAuth();
+  const [session, setSession] = useState(null);
 
-  const toggleSidebar = () => {
-    setExpanded(!expanded);
-  };
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+    };
+    
+    checkAuth();
 
-  const navItems = [
-    {
-      name: 'Dashboard',
-      href: '/dashboard',
-      icon: LayoutDashboard,
-      active: pathname === '/dashboard',
-      show: true,
-    },
-    {
-      name: 'Transaksi',
-      href: '/pos',
-      icon: ShoppingCart,
-      active: pathname === '/pos',
-      show: true,
-    },
-    {
-      name: 'Produk',
-      href: '/products',
-      icon: PackageIcon,
-      active: pathname.startsWith('/products'),
-      show: true,
-    },
-    {
-      name: 'Inventori',
-      href: '/inventory',
-      icon: Warehouse,
-      active: pathname.startsWith('/inventory'),
-      show: true,
-    },
-    {
-      name: 'Riwayat Transaksi',
-      href: '/transactions',
-      icon: Receipt,
-      active: pathname.startsWith('/transactions'),
-      show: true,
-    },
-    {
-      name: 'Laporan',
-      href: '/reports',
-      icon: BarChart3,
-      active: pathname.startsWith('/reports'),
-      show: true,
-    },
-    {
-      name: 'Pengguna',
-      href: '/users',
-      icon: Users,
-      active: pathname.startsWith('/users'),
-      show: isAdmin,
-    },
-    {
-      name: 'Pengaturan',
-      href: '/settings',
-      icon: Settings,
-      active: pathname.startsWith('/settings'),
-      show: true,
-    },
-    {
-      name: 'Profil',
-      href: '/profile',
-      icon: User,
-      active: pathname.startsWith('/profile'),
-      show: true,
-    },
-  ];
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
-    <>
-      <div
-        className={cn(
-          'h-screen bg-white fixed inset-y-0 left-0 z-20 border-r border-neutral-200 shadow-sm transition-all duration-300 ease-in-out',
-          expanded ? 'w-64' : 'w-20'
-        )}
-      >
-        {/* Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-neutral-200">
-          {expanded ? (
-            <h1 className="text-xl font-bold text-primary-600">Kasir Pintar</h1>
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white text-lg font-bold">
-              K
-            </div>
-          )}
-          <button
-            onClick={toggleSidebar}
-            className="p-1 rounded-md hover:bg-neutral-100 text-neutral-500"
-          >
-            {expanded ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="p-4 space-y-1">
-          {navItems
-            .filter(item => item.show)
-            .map((item) => (
-              <Link
-                key={item.href}
-                to={item.href}
-                className={cn(
-                  'flex items-center gap-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                  item.active
-                    ? 'bg-primary-50 text-primary-600'
-                    : 'text-neutral-700 hover:bg-neutral-100 hover:text-primary-600'
-                )}
-              >
-                <item.icon size={20} />
-                {expanded && <span>{item.name}</span>}
-              </Link>
-            ))}
+    <div className="flex h-screen flex-col bg-white border-r">
+      <div className="flex-1 overflow-y-auto py-4">
+        <nav className="flex flex-col gap-1 px-2">
+          <Link to="/dashboard" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/dashboard' ? 'bg-gray-100' : ''}`}>
+            <Home className="h-4 w-4" />
+            Dashboard
+          </Link>
+          <Link to="/pos" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/pos' ? 'bg-gray-100' : ''}`}>
+            <ShoppingCart className="h-4 w-4" />
+            POS
+          </Link>
+          <Link to="/products" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/products' ? 'bg-gray-100' : ''}`}>
+            <Package className="h-4 w-4" />
+            Produk
+          </Link>
+          <Link to="/inventory" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/inventory' ? 'bg-gray-100' : ''}`}>
+            <Package className="h-4 w-4" />
+            Inventory
+          </Link>
+          <Link to="/transactions" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/transactions' ? 'bg-gray-100' : ''}`}>
+            <ShoppingCart className="h-4 w-4" />
+            Transaksi
+          </Link>
+          <Link to="/reports" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/reports' ? 'bg-gray-100' : ''}`}>
+            <BarChart className="h-4 w-4" />
+            Laporan
+          </Link>
+          <Link to="/users" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/users' ? 'bg-gray-100' : ''}`}>
+            <Users className="h-4 w-4" />
+            Pengguna
+          </Link>
+          <Link to="/profile" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/profile' ? 'bg-gray-100' : ''}`}>
+            <User className="h-4 w-4" />
+            Profil
+          </Link>
+          <Link to="/settings" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/settings' ? 'bg-gray-100' : ''}`}>
+            <Settings className="h-4 w-4" />
+            Pengaturan
+          </Link>
         </nav>
-
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-neutral-200">
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700"
-            onClick={() => signOut()}
+      </div>
+      {session && (
+        <div className="p-4 border-t">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start" 
+            onClick={signOut}
+            disabled={loading}
           >
-            <LogOut size={20} className="mr-2" />
-            {expanded && <span>Keluar</span>}
+            {loading ? 'Logging out...' : 'Logout'}
           </Button>
         </div>
-      </div>
-
-      {/* Main Content Wrapper (to push content to the right) */}
-      <div
-        className={cn(
-          'transition-all duration-300 ease-in-out',
-          expanded ? 'ml-64' : 'ml-20'
-        )}
-      />
-    </>
+      )}
+    </div>
   );
 };
