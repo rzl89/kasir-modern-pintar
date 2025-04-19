@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, LogIn } from 'lucide-react';
 
 const formSchema = z.object({
   email: z.string().email('Email tidak valid'),
@@ -100,7 +100,10 @@ const Login = () => {
                   Login...
                 </span>
               ) : (
-                'Login'
+                <span className="flex items-center justify-center">
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Login
+                </span>
               )}
             </Button>
           </form>

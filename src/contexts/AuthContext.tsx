@@ -33,50 +33,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Set initial session
-    const initSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-      setUser(data.session?.user || null);
-      
-      if (data.session?.user) {
-        // Fetch user role
-        const { data: userData, error } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', data.session.user.id)
-          .single();
-        
-        if (error) {
-          console.error('Error fetching user role:', error);
-        } else if (userData) {
-          setUserRole(userData.role as Role);
-        }
-      }
-      
-      setUserLoading(false);
-    };
-
-    initSession();
-
-    // Set up auth state change listener
+    // Set up auth state change listener FIRST to avoid missing auth events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
         setSession(session);
         setUser(session?.user || null);
         
         if (session?.user) {
           // Fetch user role
-          const { data: userData, error } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (error) {
-            console.error('Error fetching user role:', error);
-          } else if (userData) {
-            setUserRole(userData.role as Role);
+          try {
+            const { data: userData, error } = await supabase
+              .from('users')
+              .select('role')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (error) {
+              console.error('Error fetching user role:', error);
+            } else if (userData) {
+              setUserRole(userData.role as Role);
+            }
+          } catch (error) {
+            console.error('Error in auth state change handler:', error);
           }
         } else {
           setUserRole(null);
@@ -85,6 +64,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUserLoading(false);
       }
     );
+
+    // THEN check for existing session
+    const initSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        setSession(data.session);
+        setUser(data.session?.user || null);
+        
+        if (data.session?.user) {
+          // Fetch user role
+          const { data: userData, error } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', data.session.user.id)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching user role:', error);
+          } else if (userData) {
+            setUserRole(userData.role as Role);
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing session:', error);
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    initSession();
 
     return () => {
       subscription.unsubscribe();
@@ -103,6 +112,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           description: error.message,
         });
       } else {
+        toast({
+          title: 'Login berhasil',
+          description: 'Selamat datang kembali!',
+        });
         navigate('/dashboard');
       }
     } catch (error) {
@@ -164,7 +177,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         toast({
           title: 'Registrasi berhasil',
-          description: 'Silakan cek email Anda untuk verifikasi.',
+          description: 'Silakan login dengan akun yang baru dibuat.',
         });
         
         navigate('/login');
@@ -185,6 +198,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       await supabase.auth.signOut();
+      toast({
+        title: 'Logout berhasil',
+        description: 'Anda telah keluar dari sistem.',
+      });
       navigate('/login');
     } catch (error) {
       console.error('Sign out error:', error);
