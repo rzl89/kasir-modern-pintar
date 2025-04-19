@@ -1,29 +1,13 @@
+
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
 import { Home, ShoppingCart, Package, Settings, Users, BarChart, User } from 'lucide-react';
 
 export const Sidebar = () => {
   const location = useLocation();
-  const { signOut, loading } = useAuth();
-  const [session, setSession] = useState(null);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-    };
-    
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { signOut, loading, session } = useAuth();
 
   return (
     <div className="flex h-screen flex-col bg-white border-r">
