@@ -1,26 +1,40 @@
 
-import { useEffect } from "react";
-import { Navigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
 
 const Index = () => {
-  const { user, userLoading } = useAuth();
+  const { checkSession } = useAuth();
+  const navigate = useNavigate();
 
-  // Add analytics or logging if needed
   useEffect(() => {
-    console.log("Index page visited");
-  }, []);
+    const checkAuth = async () => {
+      const session = await checkSession();
+      if (session) {
+        navigate('/dashboard');
+      }
+    };
+    
+    checkAuth();
+  }, [checkSession, navigate]);
 
-  if (userLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-bold mb-4">Kasir Pintar</h1>
+        <p className="text-lg text-gray-600 mb-8">Sistem manajemen toko yang mudah dan efisien</p>
       </div>
-    );
-  }
-
-  // Redirect to dashboard if logged in, otherwise to login page
-  return <Navigate to={user ? "/dashboard" : "/login"} replace />;
+      <div className="space-x-4">
+        <Button size="lg" onClick={() => navigate('/login')}>
+          Masuk
+        </Button>
+        <Button size="lg" variant="outline" onClick={() => navigate('/register')}>
+          Daftar
+        </Button>
+      </div>
+    </div>
+  );
 };
 
 export default Index;
