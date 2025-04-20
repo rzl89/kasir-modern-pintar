@@ -6,7 +6,7 @@ import { Home, ShoppingCart, Package, Settings, Users, BarChart, User } from 'lu
 
 export const Sidebar = () => {
   const location = useLocation();
-  const { signOut, loading, user } = useAuth();
+  const { signOut, loading, user, isAdmin } = useAuth();
 
   return (
     <div className="flex h-screen flex-col bg-white border-r">
@@ -36,10 +36,15 @@ export const Sidebar = () => {
             <BarChart className="h-4 w-4" />
             Laporan
           </Link>
-          <Link to="/users" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/users' ? 'bg-gray-100' : ''}`}>
-            <Users className="h-4 w-4" />
-            Pengguna
-          </Link>
+          
+          {/* Only show Users menu item for admin users */}
+          {isAdmin && (
+            <Link to="/users" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/users' ? 'bg-gray-100' : ''}`}>
+              <Users className="h-4 w-4" />
+              Pengguna
+            </Link>
+          )}
+          
           <Link to="/profile" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/profile' ? 'bg-gray-100' : ''}`}>
             <User className="h-4 w-4" />
             Profil

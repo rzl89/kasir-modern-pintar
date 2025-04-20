@@ -33,6 +33,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log('AuthProvider initialized');
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
@@ -50,7 +51,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 .single();
               
               if (!error && data) {
+                console.log('User role fetched:', data.role);
                 setUserRole(data.role as Role);
+              } else {
+                console.error('Error or no data in fetchUserRole:', error);
               }
             } catch (error) {
               console.error('Error fetching user role:', error);
@@ -69,11 +73,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Initial session check
     const checkSession = async () => {
       try {
+        console.log('Checking initial session');
         const { data } = await supabase.auth.getSession();
         setSession(data.session);
         setUser(data.session?.user || null);
         
         if (data.session?.user) {
+          console.log('Session exists, fetching user role');
           const { data: userData, error } = await supabase
             .from('users')
             .select('role')
@@ -81,8 +87,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             .single();
           
           if (!error && userData) {
+            console.log('Initial user role:', userData.role);
             setUserRole(userData.role as Role);
+          } else {
+            console.error('Error or no data in checkSession:', error);
           }
+        } else {
+          console.log('No session found initially');
         }
       } catch (error) {
         console.error('Error checking session:', error);
@@ -277,6 +288,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const isAdmin = userRole === 'admin';
   const isCashier = userRole === 'cashier';
+
+  console.log('Auth state:', { 
+    authenticated: !!user, 
+    userRole, 
+    isAdmin, 
+    isCashier,
+    userLoading
+  });
 
   return (
     <AuthContext.Provider
