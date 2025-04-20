@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   email: z.string().email('Email tidak valid'),
@@ -18,6 +19,7 @@ const formSchema = z.object({
 
 const Login = () => {
   const { signIn, user, loading } = useAuth();
+  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -33,7 +35,15 @@ const Login = () => {
   });
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
-    await signIn(data.email, data.password);
+    try {
+      await signIn(data.email, data.password);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Login gagal',
+        description: 'Terjadi kesalahan saat login. Silakan coba lagi.',
+      });
+    }
   };
 
   // Redirect if already logged in

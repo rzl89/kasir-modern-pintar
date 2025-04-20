@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Eye, EyeOff, UserPlus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   fullName: z.string().min(3, 'Nama lengkap minimal 3 karakter'),
@@ -23,6 +24,7 @@ const formSchema = z.object({
 
 const Register = () => {
   const { signUp, user, loading } = useAuth();
+  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -41,7 +43,15 @@ const Register = () => {
   });
 
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
-    await signUp(data.email, data.password, data.fullName);
+    try {
+      await signUp(data.email, data.password, data.fullName);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Registrasi gagal',
+        description: 'Terjadi kesalahan saat registrasi. Silakan coba lagi.',
+      });
+    }
   };
 
   // Redirect if already logged in
