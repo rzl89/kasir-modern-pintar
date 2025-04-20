@@ -12,6 +12,7 @@ interface AppLayoutProps {
 export const AppLayout = ({ children, requiredRole = 'any' }: AppLayoutProps) => {
   const { user, userRole, userLoading } = useAuth();
 
+  // Show loading state when checking authentication
   if (userLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -20,6 +21,7 @@ export const AppLayout = ({ children, requiredRole = 'any' }: AppLayoutProps) =>
     );
   }
 
+  // Redirect to login if not authenticated
   if (!user) {
     return <Navigate to="/login" replace />;
   }

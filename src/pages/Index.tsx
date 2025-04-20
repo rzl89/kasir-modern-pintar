@@ -5,14 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 
 const Index = () => {
-  const { session, userLoading } = useAuth();
+  const { user, userLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!userLoading && session) {
+    if (!userLoading && user) {
       navigate('/dashboard');
     }
-  }, [session, userLoading, navigate]);
+  }, [user, userLoading, navigate]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
