@@ -33,67 +33,65 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Set up auth state change listener FIRST to avoid missing auth events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
         setSession(session);
         setUser(session?.user || null);
         
         if (session?.user) {
           // Fetch user role
-          try {
-            const { data: userData, error } = await supabase
-              .from('users')
-              .select('role')
-              .eq('id', session.user.id)
-              .single();
-            
-            if (error) {
+          const fetchUserRole = async () => {
+            try {
+              const { data, error } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', session.user.id)
+                .single();
+              
+              if (!error && data) {
+                setUserRole(data.role as Role);
+              }
+            } catch (error) {
               console.error('Error fetching user role:', error);
-            } else if (userData) {
-              setUserRole(userData.role as Role);
             }
-          } catch (error) {
-            console.error('Error in auth state change handler:', error);
-          }
+          };
+          
+          fetchUserRole();
         } else {
           setUserRole(null);
         }
-
+        
         setUserLoading(false);
       }
     );
 
-    // THEN check for existing session
-    const initSession = async () => {
+    // Initial session check
+    const checkSession = async () => {
       try {
         const { data } = await supabase.auth.getSession();
         setSession(data.session);
         setUser(data.session?.user || null);
         
         if (data.session?.user) {
-          // Fetch user role
           const { data: userData, error } = await supabase
             .from('users')
             .select('role')
             .eq('id', data.session.user.id)
             .single();
           
-          if (error) {
-            console.error('Error fetching user role:', error);
-          } else if (userData) {
+          if (!error && userData) {
             setUserRole(userData.role as Role);
           }
         }
       } catch (error) {
-        console.error('Error initializing session:', error);
+        console.error('Error checking session:', error);
       } finally {
         setUserLoading(false);
       }
     };
 
-    initSession();
+    checkSession();
 
     return () => {
       subscription.unsubscribe();
