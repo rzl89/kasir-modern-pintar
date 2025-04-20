@@ -3,6 +3,7 @@ import { ReactNode, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { OfflineIndicator } from '@/components/ui/offline-indicator';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -53,6 +54,8 @@ export const AppLayout = ({ children, requiredRole = 'any' }: AppLayoutProps) =>
         <main className="p-6">
           {children}
         </main>
+        {/* Add the offline indicator component */}
+        <OfflineIndicator />
       </div>
     </div>
   );

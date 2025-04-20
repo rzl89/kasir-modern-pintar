@@ -1,14 +1,24 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kasir-modern-pintar</title>
-    <meta name="description" content="Lovable Generated Project" />
+    <meta name="description" content="Aplikasi Kasir Modern dengan Kemampuan Offline" />
     <meta name="author" content="Lovable" />
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <!-- iOS PWA support -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Kasir Pintar" />
+    <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
+    <!-- Theme color -->
+    <meta name="theme-color" content="#7c3aed" />
 
     <meta property="og:title" content="kasir-modern-pintar" />
-    <meta property="og:description" content="Lovable Generated Project" />
+    <meta property="og:description" content="Aplikasi Kasir Modern dengan Kemampuan Offline" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
 
@@ -22,5 +32,11 @@
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Add offline support notification -->
+    <noscript>
+      <div style="padding: 20px; text-align: center; background-color: #f8d7da; color: #721c24; margin: 20px;">
+        JavaScript harus diaktifkan untuk menggunakan aplikasi ini.
+      </div>
+    </noscript>
   </body>
 </html>
