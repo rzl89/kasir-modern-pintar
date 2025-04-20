@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string): Promise<void> => {
     try {
       setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -111,14 +111,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           title: 'Login gagal',
           description: error.message,
         });
-        return false;
       } else {
         toast({
           title: 'Login berhasil',
           description: 'Selamat datang kembali!',
         });
         navigate('/dashboard');
-        return true;
       }
     } catch (error) {
       console.error('Sign in error:', error);
@@ -127,13 +125,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         title: 'Terjadi kesalahan',
         description: 'Tidak dapat melakukan login. Silakan coba lagi.',
       });
-      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, role: Role = 'cashier') => {
+  const signUp = async (email: string, password: string, fullName: string, role: Role = 'cashier'): Promise<void> => {
     try {
       setLoading(true);
       
@@ -155,7 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           title: 'Registrasi gagal',
           description: error.message,
         });
-        return false;
+        return;
       }
       
       if (data.user) {
@@ -175,7 +172,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             title: 'Registrasi gagal',
             description: profileError.message,
           });
-          return false;
+          return;
         }
         
         toast({
@@ -184,9 +181,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         
         navigate('/login');
-        return true;
       }
-      return false;
     } catch (error) {
       console.error('Sign up error:', error);
       toast({
@@ -194,13 +189,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         title: 'Terjadi kesalahan',
         description: 'Tidak dapat melakukan registrasi. Silakan coba lagi.',
       });
-      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const signOut = async () => {
+  const signOut = async (): Promise<void> => {
     try {
       setLoading(true);
       await supabase.auth.signOut();
@@ -209,7 +203,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: 'Anda telah keluar dari sistem.',
       });
       navigate('/login');
-      return true;
     } catch (error) {
       console.error('Sign out error:', error);
       toast({
@@ -217,13 +210,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         title: 'Terjadi kesalahan',
         description: 'Tidak dapat melakukan logout. Silakan coba lagi.',
       });
-      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const resetPassword = async (email: string) => {
+  const resetPassword = async (email: string): Promise<void> => {
     try {
       setLoading(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -236,14 +228,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           title: 'Reset password gagal',
           description: error.message,
         });
-        return false;
       } else {
         toast({
           title: 'Reset password link telah dikirim',
           description: 'Silakan cek email Anda.',
         });
         navigate('/login');
-        return true;
       }
     } catch (error) {
       console.error('Reset password error:', error);
@@ -252,13 +242,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         title: 'Terjadi kesalahan',
         description: 'Tidak dapat melakukan reset password. Silakan coba lagi.',
       });
-      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const updatePassword = async (password: string) => {
+  const updatePassword = async (password: string): Promise<void> => {
     try {
       setLoading(true);
       const { error } = await supabase.auth.updateUser({ password });
@@ -269,14 +258,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           title: 'Update password gagal',
           description: error.message,
         });
-        return false;
       } else {
         toast({
           title: 'Password berhasil diperbarui',
           description: 'Silakan login dengan password baru Anda.',
         });
         await signOut();
-        return true;
       }
     } catch (error) {
       console.error('Update password error:', error);
@@ -285,7 +272,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         title: 'Terjadi kesalahan',
         description: 'Tidak dapat melakukan update password. Silakan coba lagi.',
       });
-      return false;
     } finally {
       setLoading(false);
     }
