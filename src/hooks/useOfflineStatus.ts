@@ -40,8 +40,14 @@ export function useOfflineStatus({ onSync }: UseOfflineStatusProps = {}) {
     if ('serviceWorker' in navigator && 'SyncManager' in window) {
       try {
         const registration = await navigator.serviceWorker.ready;
-        await registration.sync.register('sync-transactions');
-        return true;
+        // Check if SyncManager is available before using it
+        if ('SyncManager' in window && registration.sync) {
+          await registration.sync.register('sync-transactions');
+          return true;
+        } else {
+          console.warn('SyncManager is not supported in this browser');
+          return false;
+        }
       } catch (error) {
         console.error('Background sync registration error:', error);
         return false;

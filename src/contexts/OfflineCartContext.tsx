@@ -3,7 +3,7 @@ import { createContext, useContext, ReactNode } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 import { useToast } from '@/hooks/use-toast';
-import { Transaction } from '@/lib/types';
+import { Transaction, TransactionItem } from '@/lib/types';
 
 interface OfflineCartContextType {
   processOfflineTransaction: (paymentMethod: 'cash' | 'card' | 'other') => Promise<Transaction | null>;
@@ -51,6 +51,10 @@ export const OfflineCartProvider = ({ children }: { children: ReactNode }) => {
   // Handle offline transaction
   const handleOfflineTransaction = async (paymentMethod: 'cash' | 'card' | 'other'): Promise<Transaction | null> => {
     try {
+      // Generate a temporary ID for the transaction
+      const tempTransactionId = `offline_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      const currentTimestamp = new Date().toISOString();
+      
       // Create a transaction object similar to what would be created online
       const offlineTransaction: Partial<Transaction> = {
         customer_name: cart.cart.customer_name,
@@ -62,17 +66,20 @@ export const OfflineCartProvider = ({ children }: { children: ReactNode }) => {
         payment_status: 'completed',
         notes: cart.cart.notes,
         is_offline: true,
-        created_at: new Date().toISOString(),
+        created_at: currentTimestamp,
         // Generate temporary ID for offline use
-        id: `offline_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-        // Store all cart items
+        id: tempTransactionId,
+        // Add transaction items with proper TransactionItem properties
         transaction_items: cart.cart.items.map(item => ({
+          id: `offline_item_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          transaction_id: tempTransactionId,
           product_id: item.product_id,
           product_name: item.product.name,
           quantity: item.quantity,
           unit_price: item.unit_price,
-          subtotal: item.unit_price * item.quantity
-        }))
+          subtotal: item.unit_price * item.quantity,
+          created_at: currentTimestamp
+        } as TransactionItem))
       };
 
       // Save to IndexedDB
