@@ -1,3 +1,4 @@
+
 export type Role = 'admin' | 'cashier';
 
 export interface User {
@@ -48,7 +49,7 @@ export interface TransactionItem {
 
 export interface Transaction {
   id: string;
-  user_id: string;
+  user_id?: string;
   customer_name?: string;
   customer_email?: string;
   subtotal: number;
@@ -58,6 +59,7 @@ export interface Transaction {
   payment_method: 'cash' | 'card' | 'other';
   payment_status: 'pending' | 'completed' | 'cancelled';
   notes?: string;
+  is_offline?: boolean;
   created_at: string;
   updated_at?: string;
   transaction_items?: TransactionItem[];

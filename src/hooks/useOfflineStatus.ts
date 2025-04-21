@@ -6,6 +6,15 @@ interface UseOfflineStatusProps {
   onSync?: () => void;
 }
 
+// Extend the ServiceWorkerRegistration type to add sync property
+declare global {
+  interface ServiceWorkerRegistration {
+    sync?: {
+      register(tag: string): Promise<void>;
+    }
+  }
+}
+
 export function useOfflineStatus({ onSync }: UseOfflineStatusProps = {}) {
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [pendingTransactions, setPendingTransactions] = useState<number>(0);
