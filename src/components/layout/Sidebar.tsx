@@ -1,8 +1,7 @@
-
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Home, ShoppingCart, Package, Settings, Users, BarChart, User } from 'lucide-react';
+import { Home, ShoppingCart, Package, Settings, Users, BarChart, User, HelpCircle } from 'lucide-react';
 
 export const Sidebar = () => {
   const location = useLocation();
@@ -52,6 +51,10 @@ export const Sidebar = () => {
           <Link to="/settings" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/settings' ? 'bg-gray-100' : ''}`}>
             <Settings className="h-4 w-4" />
             Pengaturan
+          </Link>
+          <Link to="/help" className={`flex items-center gap-2 rounded-md p-2 text-sm font-semibold hover:bg-gray-100 ${location.pathname === '/help' ? 'bg-gray-100' : ''}`}>
+            <HelpCircle className="h-4 w-4" />
+            Bantuan
           </Link>
         </nav>
       </div>
