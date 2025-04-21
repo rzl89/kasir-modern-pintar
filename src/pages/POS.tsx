@@ -18,6 +18,51 @@ import { CheckoutDialog } from './components/CheckoutDialog';
 import { PaymentDialog } from './components/PaymentDialog';
 import { ReceiptDialog } from './components/ReceiptDialog';
 
+const DUMMY_PRODUCTS = [
+  {
+    id: "dummy-1",
+    name: "Kopi Dummy 250ml",
+    price: 13000,
+    description: "Minuman kopi dummy",
+    stock_quantity: 20,
+    image_url: "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9",
+    barcode: "DUMMYKOPI1",
+    sku: "SKU-DUMMY-1",
+    created_at: "",
+    updated_at: "",
+    category_id: undefined,
+    is_active: true,
+  },
+  {
+    id: "dummy-2",
+    name: "Kucing Dummy",
+    price: 10000,
+    description: "Mainan kucing dummy",
+    stock_quantity: 10,
+    image_url: "https://images.unsplash.com/photo-1582562124811-c09040d0a901",
+    barcode: "DUMMYCAT1",
+    sku: "SKU-DUMMY-2",
+    created_at: "",
+    updated_at: "",
+    category_id: undefined,
+    is_active: true,
+  },
+  {
+    id: "dummy-3",
+    name: "Pemandangan Dummy",
+    price: 15000,
+    description: "Gambar pemandangan dummy",
+    stock_quantity: 5,
+    image_url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
+    barcode: "DUMMYSCENE1",
+    sku: "SKU-DUMMY-3",
+    created_at: "",
+    updated_at: "",
+    category_id: undefined,
+    is_active: true,
+  },
+];
+
 const POS = () => {
   const { toast } = useToast();
   const { 
@@ -92,7 +137,11 @@ const POS = () => {
             stock_quantity: product.stock && product.stock[0] ? product.stock[0].quantity : 0
           })) as Product[];
           
-          setProducts(productsWithStock);
+          if (productsWithStock.length === 0) {
+            setProducts(DUMMY_PRODUCTS as any);
+          } else {
+            setProducts(productsWithStock);
+          }
           console.log('Products loaded:', productsWithStock.length);
           console.log('Sample product with barcode:', 
             productsWithStock.find(p => p.barcode)
