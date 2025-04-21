@@ -1,10 +1,9 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Product, Transaction } from '@/lib/types';
-import { CartItem, ShoppingCart, CartContextType } from './cartTypes';
+import { CartItem, ShoppingCart } from './cartTypes';
 
 const DEFAULT_CART: ShoppingCart = {
   items: [],
@@ -12,225 +11,161 @@ const DEFAULT_CART: ShoppingCart = {
   discount_amount: 0,
   tax_amount: 0,
   total_amount: 0,
+  // pastikan default untuk field opsional
+  customer_name: '',
+  notes: '',
 };
 
-export function useCartState(): Omit<CartContextType, never> {
+export function useCartState() {
   const [cart, setCart] = useState<ShoppingCart>(DEFAULT_CART);
   const [loading, setLoading] = useState(false);
   const [taxRate, setTaxRate] = useState(0);
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Load tax rate from settings table
+  // 1) Load tax rate sekali saat mount
   useEffect(() => {
-    const fetchSettings = async () => {
+    async function fetchSettings() {
       try {
         const { data, error } = await supabase
           .from('settings')
-          .select('*')
+          .select('tax_percentage')
           .eq('key', 'tax_percentage')
           .single();
-        
-        if (error) {
-          console.error('Error fetching tax rate:', error);
-          return;
-        }
-
-        if (data && typeof data.tax_percentage === 'number') {
-          setTaxRate(data.tax_percentage);
-        } else {
-          setTaxRate(0);
-        }
-      } catch (error) {
-        console.error('Unexpected error fetching tax settings:', error);
+        if (error) throw error;
+        setTaxRate(typeof data?.tax_percentage === 'number' ? data.tax_percentage : 0);
+      } catch {
         setTaxRate(0);
       }
-    };
-
+    }
     fetchSettings();
   }, []);
 
-  // Recalculate totals whenever items change
+  // 2) Recalculate totals otomatis kalau items atau taxRate berubah
   useEffect(() => {
-    recalculateCart();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart.items, taxRate]);
-
-  const recalculateCart = () => {
     const subtotal = cart.items.reduce(
-      (total, item) => total + item.unit_price * item.quantity,
+      (sum, it) => sum + it.unit_price * it.quantity,
       0
     );
     const taxAmount = (subtotal - cart.discount_amount) * (taxRate / 100);
     const totalAmount = subtotal - cart.discount_amount + taxAmount;
 
-    setCart(prevCart => ({
-      ...prevCart,
+    setCart(prev => ({
+      ...prev,
       subtotal,
       tax_amount: taxAmount,
       total_amount: totalAmount,
     }));
-  };
+  }, [cart.items, cart.discount_amount, taxRate]);
 
-  const addToCart = (product: Product, quantity = 1) => {
+  // 3) Action–action keranjang
+  function addToCart(product: Product, quantity = 1) {
     if (!product.stock_quantity || product.stock_quantity <= 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Stok kosong',
-        description: `${product.name} tidak tersedia dalam stok`,
-      });
+      toast({ variant: 'destructive', title: 'Stok kosong', description: `${product.name} tidak tersedia.` });
       return;
     }
 
-    setCart(prevCart => {
-      const existingItemIndex = prevCart.items.findIndex(
-        item => item.product_id === product.id
-      );
-      let updatedItems;
-      if (existingItemIndex >= 0) {
-        const currentItem = prevCart.items[existingItemIndex];
-        const newQuantity = currentItem.quantity + quantity;
-        if (newQuantity > (product.stock_quantity || 0)) {
+    setCart(prev => {
+      const idx = prev.items.findIndex(i => i.product_id === product.id);
+      let newItems = [...prev.items];
+
+      if (idx >= 0) {
+        const newQty = prev.items[idx].quantity + quantity;
+        if (newQty > (product.stock_quantity || 0)) {
           toast({
             variant: 'destructive',
             title: 'Stok tidak cukup',
-            description: `Stok ${product.name} hanya tersisa ${product.stock_quantity}`,
+            description: `Hanya tersisa ${product.stock_quantity}`,
           });
-          return prevCart;
+          return prev;
         }
-        updatedItems = [...prevCart.items];
-        updatedItems[existingItemIndex] = {
-          ...updatedItems[existingItemIndex],
-          quantity: newQuantity,
-        };
+        newItems[idx] = { ...newItems[idx], quantity: newQty };
       } else {
-        const newItem: CartItem = {
+        newItems.push({
           product_id: product.id,
           quantity,
           unit_price: product.price,
           product,
-        };
-        updatedItems = [...prevCart.items, newItem];
+        });
       }
-      return {
-        ...prevCart,
-        items: updatedItems,
-      };
-    });
 
-    toast({
-      title: 'Produk ditambahkan',
-      description: `${quantity} ${product.name} ditambahkan ke keranjang.`,
+      toast({
+        title: 'Produk ditambahkan',
+        description: `${quantity}x ${product.name}`,
+      });
+      return { ...prev, items: newItems };
     });
-  };
+  }
 
-  const updateCartItem = (productId: string, quantity: number) => {
-    setCart(prevCart => {
-      const existingItemIndex = prevCart.items.findIndex(
-        item => item.product_id === productId
-      );
-      if (existingItemIndex >= 0) {
-        const updatedItems = [...prevCart.items];
-        const currentItem = updatedItems[existingItemIndex];
-        if (quantity <= 0) {
-          updatedItems.splice(existingItemIndex, 1);
-        } else {
-          if (quantity > (currentItem.product.stock_quantity || 0)) {
-            toast({
-              variant: 'destructive',
-              title: 'Stok tidak cukup',
-              description: `Stok ${currentItem.product.name} hanya tersisa ${currentItem.product.stock_quantity}`,
-            });
-            return prevCart;
-          }
-          updatedItems[existingItemIndex] = {
-            ...updatedItems[existingItemIndex],
-            quantity,
-          };
-        }
-        return {
-          ...prevCart,
-          items: updatedItems,
-        };
+  function updateCartItem(productId: string, quantity: number) {
+    setCart(prev => {
+      const idx = prev.items.findIndex(i => i.product_id === productId);
+      if (idx < 0) return prev;
+
+      const updated = [...prev.items];
+      if (quantity <= 0) {
+        updated.splice(idx, 1);
+      } else if (quantity > (updated[idx].product.stock_quantity || 0)) {
+        toast({
+          variant: 'destructive',
+          title: 'Stok tidak cukup',
+          description: `Hanya tersisa ${updated[idx].product.stock_quantity}`,
+        });
+        return prev;
+      } else {
+        updated[idx] = { ...updated[idx], quantity };
       }
-      return prevCart;
+
+      return { ...prev, items: updated };
     });
-  };
+  }
 
-  const removeFromCart = (productId: string) => {
-    setCart(prevCart => {
-      const existingItemIndex = prevCart.items.findIndex(
-        item => item.product_id === productId
-      );
-      if (existingItemIndex >= 0) {
-        const updatedItems = [...prevCart.items];
-        updatedItems.splice(existingItemIndex, 1);
-        return {
-          ...prevCart,
-          items: updatedItems,
-        };
-      }
-      return prevCart;
-    });
-  };
+  function removeFromCart(productId: string) {
+    setCart(prev => ({
+      ...prev,
+      items: prev.items.filter(i => i.product_id !== productId),
+    }));
+  }
 
-  const clearCart = () => setCart(DEFAULT_CART);
+  function clearCart() {
+    setCart(DEFAULT_CART);
+  }
 
-  const applyDiscount = (amount: number) => {
-    if (amount < 0) {
+  function applyDiscount(amount: number) {
+    if (amount < 0 || amount > cart.subtotal) {
       toast({
         variant: 'destructive',
         title: 'Diskon tidak valid',
-        description: 'Nilai diskon tidak boleh negatif.',
+        description: amount < 0
+          ? 'Nilai diskon tidak boleh negatif.'
+          : 'Diskon tidak boleh melebihi subtotal.',
       });
       return;
     }
+    setCart(prev => ({ ...prev, discount_amount: amount }));
+  }
 
-    if (amount > cart.subtotal) {
-      toast({
-        variant: 'destructive',
-        title: 'Diskon terlalu besar',
-        description: 'Nilai diskon tidak boleh melebihi subtotal.',
-      });
-      return;
-    }
+  function addCustomerDetails(customerName = '', notes = '') {
+    setCart(prev => ({ ...prev, customer_name: customerName, notes }));
+  }
 
-    setCart(prevCart => ({
-      ...prevCart,
-      discount_amount: amount,
-    }));
-  };
-
-  const addCustomerDetails = (customerName?: string, notes?: string) => {
-    setCart(prevCart => ({
-      ...prevCart,
-      customer_name: customerName,
-      notes,
-    }));
-  };
-
-  const processTransaction = async (paymentMethod: 'cash' | 'card' | 'other'): Promise<Transaction | null> => {
+  async function processTransaction(
+    paymentMethod: 'cash' | 'card' | 'other'
+  ): Promise<Transaction | null> {
     if (!user) {
-      toast({
-        variant: 'destructive',
-        title: 'Tidak dapat memproses transaksi',
-        description: 'Anda perlu login terlebih dahulu.',
-      });
+      toast({ variant: 'destructive', title: 'Login diperlukan', description: 'Silakan login dulu.' });
       return null;
     }
-
     if (cart.items.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Keranjang kosong',
-        description: 'Tidak dapat memproses transaksi dengan keranjang kosong.',
-      });
+      toast({ variant: 'destructive', title: 'Keranjang kosong', description: 'Tambahkan produk dulu.' });
       return null;
     }
 
     try {
       setLoading(true);
-      const { data: transactionData, error: transactionError } = await supabase
+
+      // 1) Insert transaksi utama
+      const { data: trxData, error: trxErr } = await supabase
         .from('transactions')
         .insert({
           user_id: user.id,
@@ -244,116 +179,82 @@ export function useCartState(): Omit<CartContextType, never> {
           notes: cart.notes,
         })
         .select();
+      if (trxErr || !trxData?.length) throw trxErr || new Error('Transaksi gagal dibuat');
 
-      if (transactionError) {
-        console.error('Error creating transaction:', transactionError);
-        throw new Error(`Error creating transaction: ${transactionError.message}`);
-      }
+      const trx = trxData[0] as Transaction;
 
-      if (!transactionData || transactionData.length === 0) {
-        throw new Error('No transaction data returned after insert');
-      }
-
-      const transaction = transactionData[0] as Transaction;
-
-      // Insert transaction items
-      const transactionItems = cart.items.map(item => ({
-        transaction_id: transaction.id,
-        product_id: item.product_id,
-        product_name: item.product.name,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        subtotal: item.unit_price * item.quantity,
+      // 2) Insert item–item transaksi
+      const itemsPayload = cart.items.map(i => ({
+        transaction_id: trx.id,
+        product_id: i.product_id,
+        product_name: i.product.name,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        subtotal: i.unit_price * i.quantity,
       }));
-
-      const { error: itemsError } = await supabase
+      const { error: itemsErr } = await supabase
         .from('transaction_items')
-        .insert(transactionItems);
+        .insert(itemsPayload);
+      if (itemsErr) throw itemsErr;
 
-      if (itemsError) {
-        throw new Error(`Error creating transaction items: ${itemsError.message}`);
-      }
+      // 3) Update stok & catat adjustment
+      for (const i of cart.items) {
+        const { data: stock, error: stockErr } = await supabase
+          .from('stock')
+          .select('id, quantity')
+          .eq('product_id', i.product_id)
+          .single();
 
-      // Update product stock quantities
-      for (const item of cart.items) {
-        try {
-          const { data: stockData, error: stockError } = await supabase
-            .from('stock')
-            .select('quantity, id')
-            .eq('product_id', item.product_id)
-            .single();
+        const currentQty = stockErr || !stock ? 0 : stock.quantity;
+        const newQty = Math.max(0, currentQty - i.quantity);
 
-          if (stockError) {
-            continue;
-          }
-
-          if (!stockData) {
-            await supabase
-              .from('stock')
-              .insert({
-                product_id: item.product_id,
-                quantity: Math.max(0, (item.product.stock_quantity || 0) - item.quantity),
-                low_stock_threshold: 10,
-              });
-            continue;
-          }
-
-          const currentStock = stockData.quantity || 0;
-          const newStock = Math.max(0, currentStock - item.quantity);
-
+        if (stockErr || !stock) {
+          await supabase.from('stock').insert({
+            product_id: i.product_id,
+            quantity: newQty,
+            low_stock_threshold: 10,
+          });
+        } else {
           await supabase
             .from('stock')
-            .update({ 
-              quantity: newStock,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', stockData.id);
-
-          await supabase
-            .from('stock_adjustments')
-            .insert({
-              product_id: item.product_id,
-              adjustment_type: 'sale',
-              quantity: item.quantity,
-              reason: 'Penjualan',
-              notes: `Transaction ID: ${transaction.id}`,
-            });
-        } catch (error) {
-          // Already logged in parent try/catch
+            .update({ quantity: newQty, updated_at: new Date().toISOString() })
+            .eq('id', stock.id);
         }
+
+        await supabase.from('stock_adjustments').insert({
+          product_id: i.product_id,
+          adjustment_type: 'sale',
+          quantity: i.quantity,
+          reason: 'Penjualan',
+          notes: `Transaction ID: ${trx.id}`,
+        });
       }
 
-      const { data: completeTransaction } = await supabase
+      // 4) Ambil kembali detail lengkap transaksi
+      const { data: finalTrx } = await supabase
         .from('transactions')
-        .select(`
-          *,
-          transaction_items(*)
-        `)
-        .eq('id', transaction.id)
+        .select('*, transaction_items(*)')
+        .eq('id', trx.id)
         .single();
 
-      toast({
-        title: 'Transaksi berhasil',
-        description: `ID Transaksi: ${transaction.id}`,
-      });
-
+      toast({ title: 'Transaksi berhasil', description: `ID: ${trx.id}` });
       clearCart();
-
-      return completeTransaction as Transaction;
-    } catch (error) {
+      return finalTrx as Transaction;
+    } catch (err: any) {
       toast({
         variant: 'destructive',
         title: 'Transaksi gagal',
-        description: error instanceof Error ? error.message : 'Terjadi kesalahan saat memproses transaksi',
+        description: err.message || 'Terjadi kesalahan',
       });
       return null;
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return {
     cart,
+    loading,
     addToCart,
     updateCartItem,
     removeFromCart,
@@ -361,6 +262,5 @@ export function useCartState(): Omit<CartContextType, never> {
     applyDiscount,
     addCustomerDetails,
     processTransaction,
-    loading,
   };
 }
