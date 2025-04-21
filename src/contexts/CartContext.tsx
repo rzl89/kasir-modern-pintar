@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -73,13 +72,30 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         if (data) {
           try {
             // If the setting is directly stored as a number in the settings table
-            if (typeof data.tax_percentage === 'number') {
-              setTaxRate(data.tax_percentage);
+            if (typeof data.value === 'number') {
+              setTaxRate(data.value);
             } 
+            // If the value is stored in a JSON object
+            else if (typeof data.value === 'object' && data.value !== null) {
+              if ('tax_percentage' in data.value) {
+                const taxPercentage = parseFloat(data.value.tax_percentage);
+                setTaxRate(isNaN(taxPercentage) ? 0 : taxPercentage);
+              } else {
+                console.log('Tax percentage not found in value object:', data.value);
+                setTaxRate(0);
+              }
+            }
             // Otherwise, try to parse it from a string or JSON
-            else if (typeof data.tax_percentage === 'string') {
-              const parsedValue = parseFloat(data.tax_percentage);
-              setTaxRate(isNaN(parsedValue) ? 0 : parsedValue);
+            else if (typeof data.value === 'string') {
+              try {
+                const parsed = JSON.parse(data.value);
+                const taxPercentage = parseFloat(parsed.tax_percentage || parsed);
+                setTaxRate(isNaN(taxPercentage) ? 0 : taxPercentage);
+              } catch (e) {
+                // If not valid JSON, try to parse directly as a number
+                const parsedValue = parseFloat(data.value);
+                setTaxRate(isNaN(parsedValue) ? 0 : parsedValue);
+              }
             }
             else {
               console.log('Tax percentage value format:', data);
