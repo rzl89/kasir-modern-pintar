@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCart } from '@/contexts/CartContext';
 import { supabase } from '@/lib/supabase';
 import { Product, Category, CartItem, Transaction } from '@/lib/types';
-import { Search, Plus, Minus, Trash2, ShoppingBag, CreditCard, Printer, Bookmark, Tag, Barcode } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingBag, CreditCard, Printer, Tag, Barcode } from 'lucide-react';
 
 const POS = () => {
   const { toast } = useToast();
@@ -43,6 +43,14 @@ const POS = () => {
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [loading1, setLoading1] = useState(true);
+  const [barcodeScanStatus, setBarcodeScanStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (barcodeInputRef.current) {
+      barcodeInputRef.current.focus();
+    }
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,20 +63,35 @@ const POS = () => {
 
         if (categoriesError) {
           console.error('Error fetching categories:', categoriesError);
+          throw categoriesError;
         } else {
           setCategories(categoriesData as Category[]);
         }
 
         const { data: productsData, error: productsError } = await supabase
           .from('products')
-          .select('*, category:categories(name)')
+          .select(`
+            *,
+            category:categories(name),
+            stock(quantity)
+          `)
           .eq('is_active', true)
           .order('name');
 
         if (productsError) {
           console.error('Error fetching products:', productsError);
+          throw productsError;
         } else {
-          setProducts(productsData as Product[]);
+          const productsWithStock = productsData.map(product => ({
+            ...product,
+            stock_quantity: product.stock && product.stock[0] ? product.stock[0].quantity : 0
+          })) as Product[];
+          
+          setProducts(productsWithStock);
+          console.log('Products loaded:', productsWithStock.length);
+          console.log('Sample product with barcode:', 
+            productsWithStock.find(p => p.barcode)
+          );
         }
       } catch (error) {
         console.error('Error:', error);
@@ -89,11 +112,12 @@ const POS = () => {
     let filtered = [...products];
 
     if (searchQuery) {
+      const searchLower = searchQuery.toLowerCase();
       filtered = filtered.filter(
         product =>
-          product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.barcode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.sku?.toLowerCase().includes(searchQuery.toLowerCase())
+          product.name.toLowerCase().includes(searchLower) ||
+          product.barcode?.toLowerCase().includes(searchLower) ||
+          product.sku?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -106,23 +130,54 @@ const POS = () => {
 
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcodeInput.trim()) return;
+    
+    if (!barcodeInput.trim()) {
+      setBarcodeScanStatus('idle');
+      return;
+    }
 
-    const product = products.find(p => p.barcode === barcodeInput.trim());
+    const barcode = barcodeInput.trim();
+    console.log('Searching barcode:', barcode);
+    console.log('Available barcodes:', products.map(p => p.barcode).filter(Boolean));
+    
+    const product = products.find(p => p.barcode === barcode);
+    
     if (product) {
-      addToCart(product);
-      setBarcodeInput('');
-      toast({
-        title: 'Produk ditemukan',
-        description: `${product.name} ditambahkan ke keranjang`,
-      });
+      console.log('Product found:', product);
+      
+      if (product.stock_quantity && product.stock_quantity <= 0) {
+        setBarcodeScanStatus('error');
+        toast({
+          variant: 'destructive',
+          title: 'Stok kosong',
+          description: `${product.name} tidak tersedia dalam stok`,
+        });
+      } else {
+        setBarcodeScanStatus('success');
+        addToCart(product);
+        toast({
+          title: 'Produk ditemukan',
+          description: `${product.name} ditambahkan ke keranjang`,
+        });
+      }
     } else {
+      console.log('No product found with barcode:', barcode);
+      setBarcodeScanStatus('error');
       toast({
         variant: 'destructive',
         title: 'Produk tidak ditemukan',
         description: 'Barcode tidak cocok dengan produk manapun',
       });
     }
+    
+    setBarcodeInput('');
+    
+    setTimeout(() => {
+      if (barcodeInputRef.current) {
+        barcodeInputRef.current.focus();
+      }
+      setBarcodeScanStatus('idle');
+    }, 1500);
   };
 
   const handleCheckout = () => {
@@ -155,16 +210,30 @@ const POS = () => {
       return;
     }
 
-    const result = await processTransaction(paymentMethod);
-    if (result) {
-      setTransaction(result);
-      setIsPaymentModalOpen(false);
-      setIsReceiptModalOpen(true);
-      
-      setCustomerName('');
-      setNotes('');
-      setDiscountAmount(0);
-      setAmountReceived(0);
+    try {
+      const result = await processTransaction(paymentMethod);
+      if (result) {
+        setTransaction(result);
+        setIsPaymentModalOpen(false);
+        setIsReceiptModalOpen(true);
+        
+        setCustomerName('');
+        setNotes('');
+        setDiscountAmount(0);
+        setAmountReceived(0);
+        
+        toast({
+          title: 'Transaksi berhasil',
+          description: 'Stok produk telah diperbarui',
+        });
+      }
+    } catch (error) {
+      console.error('Transaction error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Transaksi gagal',
+        description: error instanceof Error ? error.message : 'Terjadi kesalahan saat memproses transaksi',
+      });
     }
   };
 
@@ -175,6 +244,17 @@ const POS = () => {
 
   const calculateChange = () => {
     return Math.max(0, amountReceived - cart.total_amount);
+  };
+
+  const getBarcodeBorderColor = () => {
+    switch(barcodeScanStatus) {
+      case 'success':
+        return 'border-green-500';
+      case 'error':
+        return 'border-red-500';
+      default:
+        return '';
+    }
   };
 
   return (
@@ -197,10 +277,13 @@ const POS = () => {
               <div className="relative flex-1">
                 <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
                 <Input
+                  ref={barcodeInputRef}
                   placeholder="Scan barcode..."
-                  className="pl-10"
+                  className={`pl-10 transition-colors ${getBarcodeBorderColor()}`}
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}
+                  onBlur={() => setBarcodeScanStatus('idle')}
+                  autoComplete="off"
                 />
               </div>
               <Button type="submit">Tambah</Button>
@@ -240,13 +323,17 @@ const POS = () => {
                           product.stock_quantity <= 0 ? 'opacity-50' : ''
                         }`}
                         onClick={() => {
-                          if (product.stock_quantity > 0) {
+                          if (product.stock_quantity && product.stock_quantity > 0) {
                             addToCart(product);
+                            toast({
+                              title: 'Produk ditambahkan',
+                              description: `${product.name} ditambahkan ke keranjang`,
+                            });
                           } else {
                             toast({
                               variant: 'destructive',
                               title: 'Stok kosong',
-                              description: `${product.name} tidak tersedia`,
+                              description: `${product.name} tidak tersedia dalam stok`,
                             });
                           }
                         }}
@@ -265,9 +352,15 @@ const POS = () => {
                           </div>
                           <div className="text-sm font-medium truncate">{product.name}</div>
                           <div className="flex justify-between items-center mt-1">
-                            <div className="text-xs text-neutral-500">Stok: {product.stock_quantity}</div>
+                            <div className="text-xs text-neutral-500">Stok: {product.stock_quantity || 0}</div>
                             <div className="text-sm font-semibold">Rp {product.price.toLocaleString('id-ID')}</div>
                           </div>
+                          {product.barcode && (
+                            <div className="text-xs text-neutral-400 mt-1">
+                              <Barcode className="inline-block h-3 w-3 mr-1" />
+                              {product.barcode}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -297,13 +390,17 @@ const POS = () => {
                             product.stock_quantity <= 0 ? 'opacity-50' : ''
                           }`}
                           onClick={() => {
-                            if (product.stock_quantity > 0) {
+                            if (product.stock_quantity && product.stock_quantity > 0) {
                               addToCart(product);
+                              toast({
+                                title: 'Produk ditambahkan',
+                                description: `${product.name} ditambahkan ke keranjang`,
+                              });
                             } else {
                               toast({
                                 variant: 'destructive',
                                 title: 'Stok kosong',
-                                description: `${product.name} tidak tersedia`,
+                                description: `${product.name} tidak tersedia dalam stok`,
                               });
                             }
                           }}
@@ -322,9 +419,15 @@ const POS = () => {
                             </div>
                             <div className="text-sm font-medium truncate">{product.name}</div>
                             <div className="flex justify-between items-center mt-1">
-                              <div className="text-xs text-neutral-500">Stok: {product.stock_quantity}</div>
+                              <div className="text-xs text-neutral-500">Stok: {product.stock_quantity || 0}</div>
                               <div className="text-sm font-semibold">Rp {product.price.toLocaleString('id-ID')}</div>
                             </div>
+                            {product.barcode && (
+                              <div className="text-xs text-neutral-400 mt-1">
+                                <Barcode className="inline-block h-3 w-3 mr-1" />
+                                {product.barcode}
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       ))}
@@ -377,7 +480,7 @@ const POS = () => {
                               size="icon"
                               className="h-7 w-7"
                               onClick={() => updateCartItem(item.product_id, item.quantity + 1)}
-                              disabled={item.quantity >= item.product.stock_quantity}
+                              disabled={item.quantity >= (item.product.stock_quantity || 0)}
                             >
                               <Plus size={14} />
                             </Button>
@@ -385,7 +488,13 @@ const POS = () => {
                               variant="outline"
                               size="icon"
                               className="h-7 w-7 text-red-500 hover:text-red-700 ml-1"
-                              onClick={() => removeFromCart(item.product_id)}
+                              onClick={() => {
+                                removeFromCart(item.product_id);
+                                toast({
+                                  title: 'Produk dihapus',
+                                  description: `${item.product.name} dihapus dari keranjang`,
+                                });
+                              }}
                             >
                               <Trash2 size={14} />
                             </Button>
@@ -421,7 +530,19 @@ const POS = () => {
                   <span>Rp {cart.total_amount.toLocaleString('id-ID')}</span>
                 </div>
                 <div className="flex space-x-2 pt-2">
-                  <Button variant="outline" className="flex-1" onClick={() => clearCart()}>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1" 
+                    onClick={() => {
+                      if (cart.items.length > 0) {
+                        clearCart();
+                        toast({
+                          title: 'Keranjang dibersihkan',
+                          description: 'Semua produk telah dihapus dari keranjang',
+                        });
+                      }
+                    }}
+                  >
                     Bersihkan
                   </Button>
                   <Button className="flex-1" onClick={handleCheckout}>

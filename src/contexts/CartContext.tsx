@@ -1,6 +1,6 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CartItem, Product, ShoppingCart, Transaction } from '@/lib/types';
@@ -37,26 +37,34 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   // Load tax rate from settings
   useEffect(() => {
     const fetchSettings = async () => {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('key', 'tax_percentage')
-        .single();
-      
-      if (error) {
-        console.error('Error fetching tax rate:', error);
-      } else if (data && data.value) {
-        try {
-          // Handle parsing the value which could be a number or string
-          const value = typeof data.value === 'string' 
-            ? JSON.parse(data.value) 
-            : data.value;
-          
-          setTaxRate(value.percentage || 0);
-        } catch (e) {
-          console.error('Error parsing tax rate:', e);
-          setTaxRate(0);
+      try {
+        const { data, error } = await supabase
+          .from('settings')
+          .select('*')
+          .eq('key', 'tax_percentage')
+          .single();
+        
+        if (error) {
+          console.error('Error fetching tax rate:', error);
+          return;
         }
+        
+        if (data && data.value) {
+          try {
+            // Handle parsing the value which could be a number or string
+            const value = typeof data.value === 'string' 
+              ? JSON.parse(data.value) 
+              : data.value;
+            
+            setTaxRate(value.percentage || 0);
+          } catch (e) {
+            console.error('Error parsing tax rate:', e);
+            setTaxRate(0);
+          }
+        }
+      } catch (error) {
+        console.error('Unexpected error fetching tax settings:', error);
+        setTaxRate(0);
       }
     };
 
@@ -86,6 +94,16 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addToCart = (product: Product, quantity = 1) => {
+    // Validasi stok
+    if (!product.stock_quantity || product.stock_quantity <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Stok kosong',
+        description: `${product.name} tidak tersedia dalam stok`,
+      });
+      return;
+    }
+
     setCart(prevCart => {
       const existingItemIndex = prevCart.items.findIndex(
         item => item.product_id === product.id
@@ -95,10 +113,23 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       if (existingItemIndex >= 0) {
         // Update existing item
+        const currentItem = prevCart.items[existingItemIndex];
+        const newQuantity = currentItem.quantity + quantity;
+        
+        // Validasi agar tidak melebihi stok yang tersedia
+        if (newQuantity > (product.stock_quantity || 0)) {
+          toast({
+            variant: 'destructive',
+            title: 'Stok tidak cukup',
+            description: `Stok ${product.name} hanya tersisa ${product.stock_quantity}`,
+          });
+          return prevCart;
+        }
+        
         updatedItems = [...prevCart.items];
         updatedItems[existingItemIndex] = {
           ...updatedItems[existingItemIndex],
-          quantity: updatedItems[existingItemIndex].quantity + quantity,
+          quantity: newQuantity,
         };
       } else {
         // Add new item
@@ -131,11 +162,22 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       if (existingItemIndex >= 0) {
         const updatedItems = [...prevCart.items];
-
+        const currentItem = updatedItems[existingItemIndex];
+        
         if (quantity <= 0) {
           // Remove item if quantity is zero or negative
           updatedItems.splice(existingItemIndex, 1);
         } else {
+          // Validasi stok sebelum update
+          if (quantity > (currentItem.product.stock_quantity || 0)) {
+            toast({
+              variant: 'destructive',
+              title: 'Stok tidak cukup',
+              description: `Stok ${currentItem.product.name} hanya tersisa ${currentItem.product.stock_quantity}`,
+            });
+            return prevCart;
+          }
+          
           // Update quantity
           updatedItems[existingItemIndex] = {
             ...updatedItems[existingItemIndex],
@@ -231,6 +273,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       setLoading(true);
+      console.log('Starting transaction processing...');
 
       // Insert transaction
       const { data: transactionData, error: transactionError } = await supabase
@@ -246,26 +289,28 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           payment_status: 'completed',
           notes: cart.notes,
         })
-        .select()
-        .single();
+        .select();
 
       if (transactionError) {
+        console.error('Error creating transaction:', transactionError);
         throw new Error(`Error creating transaction: ${transactionError.message}`);
       }
 
-      // Cast transaction data to Transaction type
-      const transaction = {
-        ...transactionData,
-        cashier_id: transactionData.user_id, // Map user_id to cashier_id for type compatibility
-      } as Transaction;
+      if (!transactionData || transactionData.length === 0) {
+        throw new Error('No transaction data returned after insert');
+      }
+
+      const transaction = transactionData[0] as Transaction;
+      console.log('Transaction created:', transaction.id);
 
       // Insert transaction items
       const transactionItems = cart.items.map(item => ({
         transaction_id: transaction.id,
         product_id: item.product_id,
+        product_name: item.product.name,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        subtotal: item.unit_price * item.quantity - (item.discount_amount || 0),
+        subtotal: item.unit_price * item.quantity,
       }));
 
       const { error: itemsError } = await supabase
@@ -273,51 +318,92 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         .insert(transactionItems);
 
       if (itemsError) {
+        console.error('Error creating transaction items:', itemsError);
         throw new Error(`Error creating transaction items: ${itemsError.message}`);
       }
 
+      console.log('Transaction items created, updating stock...');
+
       // Update product stock quantities
       for (const item of cart.items) {
-        // Fetch current stock from stock table, not directly from products
-        const { data: stockData, error: stockError } = await supabase
-          .from('stock')
-          .select('quantity')
-          .eq('product_id', item.product_id)
-          .single();
+        try {
+          // Fetch current stock
+          const { data: stockData, error: stockError } = await supabase
+            .from('stock')
+            .select('quantity, id')
+            .eq('product_id', item.product_id)
+            .single();
 
-        if (stockError) {
-          console.error(`Error fetching stock for product ${item.product_id}:`, stockError);
-          continue;
+          if (stockError) {
+            console.error(`Error fetching stock for product ${item.product_id}:`, stockError);
+            continue;
+          }
+
+          if (!stockData) {
+            // Create new stock record if it doesn't exist
+            await supabase
+              .from('stock')
+              .insert({
+                product_id: item.product_id,
+                quantity: Math.max(0, (item.product.stock_quantity || 0) - item.quantity),
+                low_stock_threshold: 10,
+              });
+            
+            console.log(`Created new stock record for product ${item.product_id}`);
+            continue;
+          }
+
+          const currentStock = stockData.quantity || 0;
+          const newStock = Math.max(0, currentStock - item.quantity);
+          
+          console.log(`Updating stock for ${item.product.name}: ${currentStock} → ${newStock}`);
+
+          // Update stock quantity
+          const { error: updateError } = await supabase
+            .from('stock')
+            .update({ 
+              quantity: newStock,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', stockData.id);
+
+          if (updateError) {
+            console.error(`Error updating stock for ${item.product_id}:`, updateError);
+          }
+
+          // Add stock adjustment record for tracking
+          const { error: adjustmentError } = await supabase
+            .from('stock_adjustments')
+            .insert({
+              product_id: item.product_id,
+              adjustment_type: 'sale',
+              quantity: item.quantity,
+              reason: 'Penjualan',
+              notes: `Transaction ID: ${transaction.id}`,
+            });
+
+          if (adjustmentError) {
+            console.error(`Error creating stock adjustment for ${item.product_id}:`, adjustmentError);
+          }
+        } catch (error) {
+          console.error(`Error processing stock update for ${item.product_id}:`, error);
         }
+      }
 
-        const currentStock = stockData?.quantity || 0;
-        const newStock = Math.max(0, currentStock - item.quantity);
+      console.log('Transaction completed successfully');
+      
+      // Fetch complete transaction data with items
+      const { data: completeTransaction, error: fetchError } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          transaction_items(*)
+        `)
+        .eq('id', transaction.id)
+        .single();
 
-        // Update stock quantity in stock table
-        const { error: updateError } = await supabase
-          .from('stock')
-          .update({ quantity: newStock })
-          .eq('product_id', item.product_id);
-
-        if (updateError) {
-          console.error(`Error updating stock for ${item.product_id}:`, updateError);
-          continue;
-        }
-
-        // Create a stock adjustment record
-        const { error: adjustmentError } = await supabase
-          .from('stock')
-          .insert({
-            product_id: item.product_id,
-            quantity: newStock,
-            low_stock_threshold: 10, // Default value
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-
-        if (adjustmentError) {
-          console.error(`Error creating stock record for ${item.product_id}:`, adjustmentError);
-        }
+      if (fetchError) {
+        console.error('Error fetching complete transaction:', fetchError);
       }
 
       toast({
@@ -328,7 +414,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       // Clear cart after successful transaction
       clearCart();
 
-      return transaction;
+      return completeTransaction as Transaction;
     } catch (error) {
       console.error('Transaction error:', error);
       toast({
