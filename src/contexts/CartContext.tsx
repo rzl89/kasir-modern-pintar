@@ -1,9 +1,11 @@
+
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { CartItem, Product, ShoppingCart, Transaction } from '@/lib/types';
 
+// Define the CartContextType without circular references
 interface CartContextType {
   cart: ShoppingCart;
   addToCart: (product: Product, quantity?: number) => void;
@@ -24,6 +26,7 @@ const DEFAULT_CART: ShoppingCart = {
   total_amount: 0,
 };
 
+// Create context with undefined as default value
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
