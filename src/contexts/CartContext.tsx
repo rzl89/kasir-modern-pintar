@@ -71,34 +71,25 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         
         if (data) {
           try {
-            // If the setting is directly stored as a number in the settings table
-            if (typeof data.value === 'number') {
-              setTaxRate(data.value);
-            } 
-            // If the value is stored in a JSON object
-            else if (typeof data.value === 'object' && data.value !== null) {
-              if ('tax_percentage' in data.value) {
-                const taxPercentage = parseFloat(data.value.tax_percentage);
+            // Check if tax_percentage exists directly in data
+            if (data.tax_percentage !== undefined) {
+              const taxPercentage = parseFloat(String(data.tax_percentage));
+              setTaxRate(isNaN(taxPercentage) ? 0 : taxPercentage);
+            }
+            // If it's in a key-value format with a 'value' property
+            else if (typeof data === 'object' && 'key' in data) {
+              // Try to get tax percentage from the data object
+              const taxValue = data.value || data.tax_percentage;
+              
+              if (taxValue !== undefined) {
+                const taxPercentage = parseFloat(String(taxValue));
                 setTaxRate(isNaN(taxPercentage) ? 0 : taxPercentage);
               } else {
-                console.log('Tax percentage not found in value object:', data.value);
+                console.log('Tax percentage not found in settings data:', data);
                 setTaxRate(0);
               }
-            }
-            // Otherwise, try to parse it from a string or JSON
-            else if (typeof data.value === 'string') {
-              try {
-                const parsed = JSON.parse(data.value);
-                const taxPercentage = parseFloat(parsed.tax_percentage || parsed);
-                setTaxRate(isNaN(taxPercentage) ? 0 : taxPercentage);
-              } catch (e) {
-                // If not valid JSON, try to parse directly as a number
-                const parsedValue = parseFloat(data.value);
-                setTaxRate(isNaN(parsedValue) ? 0 : parsedValue);
-              }
-            }
-            else {
-              console.log('Tax percentage value format:', data);
+            } else {
+              console.log('Unexpected settings data format:', data);
               setTaxRate(0);
             }
           } catch (e) {
