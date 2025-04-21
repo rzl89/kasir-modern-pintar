@@ -3,9 +3,28 @@ import { createContext, useContext, useState, ReactNode, useEffect } from 'react
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { CartItem, Product, ShoppingCart, Transaction } from '@/lib/types';
+import { Product, Transaction } from '@/lib/types';
 
-// Define the CartContextType without circular references
+// Define types without circular references
+interface CartItem {
+  product_id: string;
+  quantity: number;
+  unit_price: number;
+  discount_amount?: number;
+  product: Product;
+}
+
+interface ShoppingCart {
+  items: CartItem[];
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  total_amount: number;
+  customer_name?: string;
+  notes?: string;
+}
+
+// Define the CartContextType
 interface CartContextType {
   cart: ShoppingCart;
   addToCart: (product: Product, quantity?: number) => void;
