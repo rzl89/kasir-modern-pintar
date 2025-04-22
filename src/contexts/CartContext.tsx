@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -71,25 +72,17 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
         
         if (data) {
           try {
-            // Check if tax_percentage exists directly in data
-            if (data.tax_percentage !== undefined) {
-              const taxPercentage = parseFloat(String(data.tax_percentage));
-              setTaxRate(isNaN(taxPercentage) ? 0 : taxPercentage);
+            // If the setting is directly stored as a number in the settings table
+            if (typeof data.tax_percentage === 'number') {
+              setTaxRate(data.tax_percentage);
+            } 
+            // Otherwise, try to parse it from a string or JSON
+            else if (typeof data.tax_percentage === 'string') {
+              const parsedValue = parseFloat(data.tax_percentage);
+              setTaxRate(isNaN(parsedValue) ? 0 : parsedValue);
             }
-            // If it's in a key-value format with a 'value' property
-            else if (typeof data === 'object' && 'key' in data) {
-              // Try to get tax percentage from the data object
-              const taxValue = data.value || data.tax_percentage;
-              
-              if (taxValue !== undefined) {
-                const taxPercentage = parseFloat(String(taxValue));
-                setTaxRate(isNaN(taxPercentage) ? 0 : taxPercentage);
-              } else {
-                console.log('Tax percentage not found in settings data:', data);
-                setTaxRate(0);
-              }
-            } else {
-              console.log('Unexpected settings data format:', data);
+            else {
+              console.log('Tax percentage value format:', data);
               setTaxRate(0);
             }
           } catch (e) {
